@@ -1,3 +1,5 @@
+set(CMAKE_CXX_STANDARD 17)
+
 add_executable(example_triple_integrator_test
   example_triple_integrator_test.cpp
 )
@@ -17,3 +19,16 @@ target_link_libraries(example_unicycle_test
   example_problems
 )
 gtest_discover_tests(example_unicycle_test)
+
+find_package(Python3 COMPONENTS Development NumPy)
+add_executable(example_truck_test
+example_truck_test.cpp
+)
+target_link_libraries(example_truck_test
+  PRIVATE
+  gtest_main
+  example_problems
+  Python3::Python
+  Python3::NumPy
+)
+gtest_discover_tests(example_truck_test)

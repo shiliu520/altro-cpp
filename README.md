@@ -124,7 +124,7 @@ The documentation can be built using the `doxygen` target:
 ```bash
 cmake --build . --target doxygen
 ```
-The home page is located at 
+The home page is located at
 ```bash
 build/docs/html/index.html
 ```
@@ -151,7 +151,7 @@ target_link_libraries(my_program
 )
 ```
 
-The library automatically adds the `include` install directory to the include path, so all `#include` statements should be relative to 
+The library automatically adds the `include` install directory to the include path, so all `#include` statements should be relative to
 the altro root directory, e.g.
 ```cpp
 #include <iostream>
@@ -165,4 +165,10 @@ int main() {
 
   return 0;
 }
+```
+
+### Run example_truck_test
+The truck test can easily be run using binary file. In the `build/` directory, run the following command:
+```bash
+./bin/example_truck_test
 ```
