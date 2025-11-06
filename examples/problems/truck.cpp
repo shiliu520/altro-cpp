@@ -239,7 +239,7 @@ altro::problem::Problem TruckProblem::MakeProblem(const bool add_constraints, Ei
     xf << 100, 0, 0, 0;
     u0 << 0.0, 10.0;
     uref << 0.0, 10.0;
-   
+
     constexpr int num_obstacles = 1;
     cx = Eigen::Vector2d(50, 1);  // x-coordinates of obstacles
     cy = Eigen::Vector2d(1, 1);  // y-coordinates of obstacles
@@ -318,7 +318,7 @@ altro::problem::Problem TruckProblem::MakeProblem(const bool add_constraints, Ei
       xref(i, 2) = M_PI;
       xref(i, 3) = M_PI;
     }
-   
+
     for (int i = 80; i < 120; i++)    {
       xref(i, 0) = 40;
       xref(i, 1) = xf(1) / 40 * (i - 80);
@@ -359,13 +359,103 @@ altro::problem::Problem TruckProblem::MakeProblem(const bool add_constraints, Ei
       }
     }
   }
+else if(scenario_ == Largecurve){  // 假设 scenario_ 是枚举，已改为小写
+    tf = 5.0;
+    h = GetTimeStep();
+    const int NStates = 4;  // 明确状态维度为4（与Truck模型一致）
+    // const int N = 250;      // 预测步长（与错误中的250行对应）
+
+    // Q：4×4 状态权重矩阵
+    Q << 10, 0, 0, 0,
+         0, 10, 0, 0,
+         0, 0, 0, 0,
+         0, 0, 0, 0;
+    // R：2×2 控制权重矩阵（不变，因为控制输入是2维：steer、v）
+    R << 300 * h, 0,
+         0, 1 * h;
+    // Qf：4×4 终端状态权重矩阵
+    Qf << 100, 0, 0, 0,
+          0, 100, 0, 0,
+          0, 0, 200, 0,
+          0, 0, 0, 200;
+
+    x0 = x_init;  // 确保 x_init 是4维向量
+    xf << 0, 40, M_PI, M_PI;  // 4维目标状态
+
+    u0 << 0.0, 10.0;
+    uref << 0.0, 10.0;
+
+    // xref：400行×4列（参考轨迹，列数=状态维度）
+    Eigen::Matrix<double, 250, 4> xref;
+    for (int i = 0; i < 50; ++i) {
+      // 前直线段（i=0~49）：沿x轴正方向
+      xref(i, 0) = 0.8 * i;              // x: 0→39.2（步长0.8，适配250点总长度）
+      xref(i, 1) = 0.0;                  // y=0
+      xref(i, 2) = 0.0;                  // yaw=0（朝向x轴正）
+      xref(i, 3) = 0.0;                  // hitch=0
+
+      // 后直线段（total_points-1 -i = 249~200）：沿x轴负方向（与前直线对称）
+      int reverse_i = 250 - 1 - i;
+      xref(reverse_i, 0) = 0.8 * i;      // x: 39.2→0（步长-0.8）
+      xref(reverse_i, 1) = 40;         // y=40（与前直线y=0对称）
+      xref(reverse_i, 2) = M_PI;         // yaw=π（朝向x轴负）
+      xref(reverse_i, 3) = M_PI;         // hitch=π
+    }
+
+    // 第二个for循环：处理半圆曲线段（i=50~199，共150个点）
+    for (int i = 50; i < 200; ++i) {
+      int curve_idx = i - 50;   // 曲线段内部索引（0~149）
+      double angle = M_PI * curve_idx / (200 - 50 - 1);  // 0→π（180°）
+      double radius = 40 / 2;          // 半圆半径=20（与原一致）
+      double center_x = 40.0;            // 半圆圆心x（衔接前直线末端）
+      double center_y = 30.0;            // 半圆圆心y（与原一致）
+
+      // x/y坐标：半圆轨迹（右→上→左转弯）
+      xref(i, 0) = center_x + radius * sin(angle);  // x:40→60→40
+      xref(i, 1) = center_y - radius * cos(angle);  // y:30→50→30
+      xref(i, 2) = angle;                           // yaw角：0→π（均匀转向）
+      xref(i, 3) = xref(std::max(i - 7, 50), 2);  // hitch角滞后7步（避免越界）
+    }
+
+    // 修正 start_id 范围，避免索引越界
+    int start_id = findClosest(x_init, xref);
+    start_id = std::min(start_id, static_cast<int>(xref.rows()) - N);
+    start_id = std::max(start_id, 0);
+
+    static int final = 50;
+    xf << xref(final, 0), xref(final, 1), xref(final, 2), xref(final, 3);  // 4维
+    final += 1;
+
+    lb = {-steer_bnd, -v_bnd};
+    ub = {+steer_bnd, +v_bnd};
+
+    // Cost Function
+    for (int k = 0; k < N; ++k) {
+      Eigen::VectorXd vec_xref(NStates);
+      vec_xref << xref(k + start_id, 0), xref(k + start_id, 1),
+                  xref(k + start_id, 2), xref(k + start_id, 3);  // 4维参考状态
+      qcost = std::make_shared<examples::QuadraticCost>(
+          examples::QuadraticCost::LQRCost(Q, R, vec_xref, uref));
+      prob.SetCostFunction(qcost, k);
+    }
+    qterm = std::make_shared<examples::QuadraticCost>(
+        examples::QuadraticCost::LQRCost(Qf, R * 0, xf, uref, true));
+    prob.SetCostFunction(qterm, N);
+
+    // Constraints
+    if (add_constraints) {
+      for (int k = 0; k < N; ++k) {
+        prob.SetConstraint(std::make_shared<altro::examples::ControlBound>(lb, ub), k);
+      }
+    }
+  }
 //   else if(scenario_ == Largecurve){
 //     tf = 5.0;
 //     h = GetTimeStep();
 //     // Q.diagonal().setConstant(1.0 * h);
 //     Q << 10, 0, 0, 0, 0, 0,
 //          0, 10, 0, 0, 0, 0,
-//          0, 0, 0, 0, 0, 0, 
+//          0, 0, 0, 0, 0, 0,
 //          0, 0, 0, 0, 0, 0,
 //          0, 0, 0, 0, 100, 0,
 //          0, 0, 0, 0, 0, 100;

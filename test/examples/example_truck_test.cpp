@@ -164,7 +164,7 @@ class TruckExampleTest : public altro::problems::TruckProblem, public ::testing:
     plt::plot({obsx[1]}, {obsy[1]}, {{"c","red"}, {"marker","o"}, {"markersize","38"}});
     plt::plot(trajx, trajy, "g-");
     // plt::axis("scaled");
-    plt::save(get_save_path("LaneChange/variable", id + ".png"));
+    plt::save(get_save_path("lanechange/variable", id + ".png"));
     // plt::show();
   }
 
@@ -231,7 +231,7 @@ class TruckExampleTest : public altro::problems::TruckProblem, public ::testing:
     // plt::plot({obsx[1]}, {obsy[1]}, {{"c","red"}, {"marker","o"}, {"markersize","38"}});
     plt::plot(trajx, trajy, "g-");
     // plt::axis("scaled");
-    plt::save(get_save_path("LaneChange/variable", "Continuously.png"));
+    plt::save(get_save_path("lanechange/variable", "lanechange.png"));
     // plt::show();
   }
 
@@ -294,7 +294,7 @@ class TruckExampleTest : public altro::problems::TruckProblem, public ::testing:
     plt::plot(xref2[0], xref2[1], "b--");
     plt::plot(trajx, trajy, "g-");
     // plt::axis("scaled");
-    plt::save(get_save_path("Uturn", id + ".png"));
+    plt::save(get_save_path("uturn", id + ".png"));
     // plt::show();
   }
 
@@ -325,7 +325,7 @@ class TruckExampleTest : public altro::problems::TruckProblem, public ::testing:
     plt::plot(xref2[0], xref2[1], "b--");
     plt::plot(trajx, trajy, "g-");
     // plt::axis("scaled");
-    plt::save(get_save_path("Uturn", "UturnCon.png"));
+    plt::save(get_save_path("uturn", "uturncon.png"));
     // plt::show();
   }
 
@@ -367,7 +367,7 @@ class TruckExampleTest : public altro::problems::TruckProblem, public ::testing:
 //     plt::plot(xref[0], xref[1], "b--");
 //     plt::plot(trajx, trajy, "g-");
 //     plt::axis("scaled");
-//     plt::save(get_save_path("LargecurveCon",  + ".png"));
+//     plt::save(get_save_path("largecurvecon",  + ".png"));
 //     // plt::show();
 //   }
 
@@ -399,6 +399,12 @@ TEST_F(TruckExampleTest, SolveContinuously) {
   std::vector<double> trajx(1, 0), trajy(1, 0);
   setenv("MPLBACKEND", "Agg", 1);
   // double max_steer = 0.0;
+
+  // LaneChange StraightRoadWithObs ForwardObs Uturn Largecurve
+  SetScenario(ForwardObs);
+  // 获取当前场景（从 TruckProblem 继承的 GetScenario()）
+  Scenario current_scenario = GetScenario();
+
   for (int i = 0; i < 100; i++) {
     altro::augmented_lagrangian::AugmentedLagrangianiLQR<NStates, NControls> solver_al = MakeALSolver(x_init);
     solver_al.SetPenalty(10.0);
@@ -407,11 +413,52 @@ TEST_F(TruckExampleTest, SolveContinuously) {
     x_init = solver_al.GetiLQRSolver().GetTrajectory()->State(1);
     trajx.push_back(x_init(0));
     trajy.push_back(x_init(1));
-    drawPlot1(solver_al, std::to_string(i));
+
+    // 分场景调用单步绘图函数
+    switch (current_scenario) {
+      case StraightRoadWithObs:
+        drawPlot1(solver_al, std::to_string(i));  // 双障碍物直道场景
+        break;
+      case LaneChange:
+        drawPlot2(solver_al, std::to_string(i));  // 车道变换场景
+        break;
+      case ForwardObs:
+        drawPlot3(solver_al, std::to_string(i));  // 前方单障碍物场景
+        break;
+      case Uturn:
+        drawPlot6(solver_al, std::to_string(i));  // 掉头场景
+        break;
+      // 如需支持 Largecurve，需先完善 drawPlot8
+      // case Largecurve:
+      //   drawPlot8(solver_al, std::to_string(i));
+      //   break;
+      default:
+        GTEST_FAIL() << "Unsupported scenario for continuous solving: " << current_scenario;
+    }
+
     // max_steer = std::max(max_steer, solver_al.GetiLQRSolver().GetTrajectory()->Control(0)(0));
   }
   // std::cout << max_steer << std::endl;
-  drawPlot5(trajx, trajy);
+  // 分场景调用连续轨迹绘图函数
+  switch (current_scenario) {
+    case StraightRoadWithObs:
+      drawPlot5(trajx, trajy);  // 双障碍物直道连续轨迹
+      break;
+    case LaneChange:
+      drawPlot4(trajx, trajy);  // 车道变换连续轨迹
+      break;
+    case ForwardObs:
+      drawPlot9(trajx, trajy);  // 前方单障碍物连续轨迹
+      break;
+    case Uturn:
+      drawPlot7(trajx, trajy);  // 掉头连续轨迹
+      break;
+    // case Largecurve:
+    //   drawPlot9(trajx, trajy);  // 需完善 Largecurve 连续绘图函数
+    //   break;
+    default:
+      GTEST_FAIL() << "Unsupported scenario for continuous trajectory plot: " << current_scenario;
+  }
 
   EXPECT_EQ(1, 1);
 }

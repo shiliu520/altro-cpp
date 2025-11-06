@@ -75,7 +75,8 @@ class TruckProblem {
 //   altro::augmented_lagrangian::AugmentedLagrangianiLQR<n_size, m_size> MakeALSolver(Eigen::VectorXd x_init = Eigen::VectorXd(NStates, 0));
   altro::augmented_lagrangian::AugmentedLagrangianiLQR<n_size, m_size> MakeALSolver(Eigen::Vector4d x_init = Eigen::Vector4d(0, 0, 0, 0));
 
-  void SetScenario(Scenario scenario) { scenario_ = scenario; }
+  void SetScenario(Scenario scenario) { scenario_ = scenario;}
+  Scenario GetScenario() const { return scenario_; }
 
   float GetTimeStep() const { return tf / N; }
 
