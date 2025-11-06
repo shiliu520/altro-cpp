@@ -17,6 +17,8 @@ add_library(dynamics_examples
   triple_integrator.hpp
   truck.hpp
   truck.cpp
+  car_kin.hpp
+  car_kin.cpp
 )
 target_link_libraries(dynamics_examples
   PUBLIC
