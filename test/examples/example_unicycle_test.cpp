@@ -63,7 +63,7 @@ TEST_F(UnicycleExampleTest, SolveOneStep) {
 
   Eigen::VectorXd lambdaN(n);
   lambdaN << 0.43555910438329626, -0.5998598475208317, 0.0044282251970790935; // from Altro.jl
-  EXPECT_TRUE(solver_al.GetALCost(N)->GetEqualityConstraints()[0]->GetDuals().isApprox(-lambdaN, 1e-6));
+  EXPECT_TRUE(solver_al.GetALCost(N)->GetEqualityConstraints()[0]->GetDuals().isApprox(lambdaN, 1e-6));
 }
 
 TEST_F(UnicycleExampleTest, SolveConstrained) {

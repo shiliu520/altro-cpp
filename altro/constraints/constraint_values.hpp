@@ -112,7 +112,7 @@ class ConstraintValues : public Constraint<ConType> {
     const double rho = penalty_(0);
     con_->Evaluate(x, u, c_);
 
-    ConType::DualCone::Projection(lambda_ - rho * c_, lambda_proj_);
+    ConType::DualCone::Projection(lambda_ + rho * c_, lambda_proj_);
     double J = lambda_proj_.squaredNorm() - lambda_.squaredNorm();
     J = J / (2 * rho);
     return J;
@@ -135,11 +135,11 @@ class ConstraintValues : public Constraint<ConType> {
     // TODO(bjackson): Avoid these redundant calls.
     con_->Evaluate(x, u, c_);
     con_->Jacobian(x, u, jac_);
-    ConType::DualCone::Projection(lambda_ - rho * c_, lambda_proj_);
-    ConType::DualCone::Jacobian(lambda_ - rho * c_, proj_jac_);
+    ConType::DualCone::Projection(lambda_ + rho * c_, lambda_proj_);
+    ConType::DualCone::Jacobian(lambda_ + rho * c_, proj_jac_);
     const int output_dim = con_->OutputDimension();
-    dx = -(proj_jac_ * jac_.topLeftCorner(output_dim, this->n_)).transpose() * lambda_proj_;
-    du = -(proj_jac_ * jac_.topRightCorner(output_dim, this->m_)).transpose() * lambda_proj_;
+    dx = (proj_jac_ * jac_.topLeftCorner(output_dim, this->n_)).transpose() * lambda_proj_;
+    du = (proj_jac_ * jac_.topRightCorner(output_dim, this->m_)).transpose() * lambda_proj_;
   }
   /**
    * @brief The Hessian of the Augmented Lagrangian
@@ -160,8 +160,8 @@ class ConstraintValues : public Constraint<ConType> {
     // TODO(bjackson): Avoid these redundant calls.
     con_->Evaluate(x, u, c_);
     con_->Jacobian(x, u, jac_);
-    ConType::DualCone::Projection(lambda_ - rho * c_, lambda_proj_);
-    ConType::DualCone::Jacobian(lambda_ - rho * c_, proj_jac_);
+    ConType::DualCone::Projection(lambda_ + rho * c_, lambda_proj_);
+    ConType::DualCone::Jacobian(lambda_ + rho * c_, proj_jac_);
     jac_proj_ = proj_jac_ * jac_;
     const int output_dim = con_->OutputDimension();
     dxdx = rho * jac_proj_.topLeftCorner(output_dim, this->n_).transpose()
@@ -191,7 +191,7 @@ class ConstraintValues : public Constraint<ConType> {
    * 
    */
   void UpdateDuals() {
-    ConType::DualCone::Projection(lambda_ - penalty_.asDiagonal() * c_, lambda_);
+    ConType::DualCone::Projection(lambda_ + penalty_.asDiagonal() * c_, lambda_);
   }
 
   /**

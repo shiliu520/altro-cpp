@@ -367,11 +367,11 @@ TEST_F(TripleIntegratoriLQRTest, AugLagCostExpansion) {
   goalvals->SetPenalty(rho);
   goalvals->GetDuals().setConstant(1.5);
   Eigen::VectorXd lambda = goalvals->GetDuals();
-  Eigen::VectorXd lambda_bar = lambda - rho * (x0 - xf);
+  Eigen::VectorXd lambda_bar = lambda + rho * (x0 - xf);
 
   // Calculate Expansion and compare to expected values
   solver.UpdateExpansions();
-  Eigen::VectorXd dx_expected = Qf * (x0 - xf) - lambda_bar;
+  Eigen::VectorXd dx_expected = Qf * (x0 - xf) + lambda_bar;
   EXPECT_TRUE(kpf.GetCostExpansion().dxdx().isApprox(Qf + Eigen::MatrixXd::Identity(n, n) * rho));
   EXPECT_TRUE(kpf.GetCostExpansion().dudu().isApprox(R * 0));
   EXPECT_TRUE(kpf.GetCostExpansion().dx().isApprox(dx_expected));

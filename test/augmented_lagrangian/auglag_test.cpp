@@ -42,7 +42,7 @@ class AugLagTest : public problems::UnicycleProblem, public ::testing::Test {
     problem::Problem prob = MakeProblem();
     ALCost<n2, m2> alcost0(prob, 0);
     alcost0.GetInequalityConstraints().at(0)->SetPenalty(rho);
-    alcost0.GetInequalityConstraints().at(0)->GetDuals()(2) = -rho * v_violation;
+    alcost0.GetInequalityConstraints().at(0)->GetDuals()(2) = rho * v_violation;
     return alcost0;
   }
 
@@ -58,7 +58,7 @@ class AugLagTest : public problems::UnicycleProblem, public ::testing::Test {
     EXPECT_DOUBLE_EQ(J_al, J_cost + J_bnd);
 
     // Set a non-zero dual variable
-    alcost0.GetInequalityConstraints().at(0)->GetDuals()(2) = -rho * v_violation;
+    alcost0.GetInequalityConstraints().at(0)->GetDuals()(2) = rho * v_violation;
     J_al = alcost0.Evaluate(x, u);
     J_bnd = 0.5 * (std::pow(-2 * rho * v_violation, 2) - std::pow(rho * v_violation, 2)) / rho;
     EXPECT_DOUBLE_EQ(J_al, J_cost + J_bnd);

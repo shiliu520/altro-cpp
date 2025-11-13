@@ -4,10 +4,12 @@
 
 #include <limits>
 #include <vector>
+#include <fmt/format.h>
 
 #include "altro/constraints/constraint.hpp"
 #include "altro/eigentypes.hpp"
 #include "altro/utils/utils.hpp"
+#include "altro/common/trajectory.hpp"
 
 namespace altro {
 namespace examples {

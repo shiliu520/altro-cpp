@@ -15,6 +15,7 @@ namespace constraints {
 
 // Forward-declare for use in ZeroCone
 class IdentityCone;
+class NonNegativeOrthant;
 
 /**
  * @brief An Equality constraint (alias for ZeroCone)
@@ -98,7 +99,7 @@ class IdentityCone {
 class NegativeOrthant {
  public:
   NegativeOrthant() = delete;
-  using DualCone = NegativeOrthant;
+  using DualCone = NonNegativeOrthant;
 
   static void Projection(const VectorXdRef& x, Eigen::Ref<VectorXd> x_proj) {
     ALTRO_ASSERT(x.size() == x_proj.size(), "x and x_proj must be the same size");
@@ -110,6 +111,40 @@ class NegativeOrthant {
     ALTRO_ASSERT(jac.rows() == jac.cols(), "Jacobian must be square.");
     for (int i = 0; i < x.size(); ++i) {
       jac(i, i) = x(i) > 0 ? 0 : 1;
+    }
+  }
+  static void Hessian(const VectorXdRef& x, const VectorXdRef& b, Eigen::Ref<MatrixXd> hess) {
+    ALTRO_ASSERT(hess.rows() == hess.cols(), "Hessian must be square.");
+    ALTRO_ASSERT(x.size() == b.size(), "x and b must be the same size.");
+    ALTRO_UNUSED(x);
+    ALTRO_UNUSED(b);
+    hess.setZero();
+  }
+};
+
+/**
+ * @brief The space of all non-negative numbers.
+ *
+ * Used as the dual cone for inequality constraints under the f + \lambda^T c
+ * Lagrangian convention. Its projection operator is an element-wise `max(0, x)`.
+ */
+class NonNegativeOrthant {
+ public:
+  NonNegativeOrthant() = delete;
+  // Its dual cone is the NegativeOrthant
+  using DualCone = NegativeOrthant;
+
+  static void Projection(const VectorXdRef& x, Eigen::Ref<VectorXd> x_proj) {
+    ALTRO_ASSERT(x.size() == x_proj.size(), "x and x_proj must be the same size");
+    for (int i = 0; i < x.size(); ++i) {
+      x_proj(i) = std::max(0.0, x(i)); 
+    }
+  }
+  static void Jacobian(const VectorXdRef& x, Eigen::Ref<MatrixXd> jac) {
+    ALTRO_ASSERT(jac.rows() == jac.cols(), "Jacobian must be square.");
+
+    for (int i = 0; i < x.size(); ++i) {
+      jac(i, i) = x(i) < 0 ? 0 : 1; 
     }
   }
   static void Hessian(const VectorXdRef& x, const VectorXdRef& b, Eigen::Ref<MatrixXd> hess) {
