@@ -155,6 +155,67 @@ TEST(TripleIntegratorTest, EulerIntegration) {
   EXPECT_TRUE(jac.isApprox(jac_ans));
 }
 
+TEST(TripleIntegratorTest, RK4Fast_Linear) {
+  srand(0);
+  int degrees_of_freedom = 2;
+  TripleIntegrator model_cont(degrees_of_freedom);
+  // 确保使用 RungeKutta4Fast<6, 2>
+  problem::DiscretizedModel<TripleIntegrator, problem::RungeKutta4Fast<6, 2>> model_discrete(model_cont);
+  
+  int n = model_discrete.StateDimension(); // 6
+  int m = model_discrete.ControlDimension(); // 2
+  
+  // 随机初始化状态和控制
+  VectorXd x = VectorXd::Random(n);
+  VectorXd u = VectorXd::Random(m);
+  constexpr float t = 1.1;
+  constexpr float h = 0.1;
+
+  // --- 1. 单步积分结果的验证 ---
+  VectorXd xnext = model_discrete.Evaluate(x, u, t, h);
+  
+  // 计算 xnext 的解析解 (Phi*x + Psi*u)
+  VectorXd xnext_ans(n);
+  const double h2_2 = h * h / 2.0;
+  const double h3_6 = h * h * h / 6.0;
+
+  // p_next = p + h*v + (h^2/2)*a + (h^3/6)*u
+  xnext_ans.head(2).noalias() = x.head(2) + h * x.segment(2, 2) + h2_2 * x.segment(4, 2) + h3_6 * u;
+  // v_next = v + h*a + (h^2/2)*u
+  xnext_ans.segment(2, 2).noalias() = x.segment(2, 2) + h * x.segment(4, 2) + h2_2 * u;
+  // a_next = a + h*u
+  xnext_ans.tail(2).noalias() = x.tail(2) + h * u;
+  
+  // 使用较小的容差，因为 RK4 对线性系统是精确的
+  EXPECT_TRUE(xnext.isApprox(xnext_ans, 1e-9)) << "RK4 State Integration failed.";
+
+  // --- 2. Jacobian 矩阵的验证 ---
+  MatrixXd jac = MatrixXd::Zero(n, n + m);
+  model_discrete.Jacobian(x, u, t, h, jac);
+  
+  // 计算 Jacobian 的解析解 [Phi | Psi]
+  MatrixXd jac_ans(n, n + m);
+  jac_ans.setZero();
+  
+  // 填充 Phi 矩阵 (State-State, 6x6)
+  jac_ans.topLeftCorner(2, 2).setIdentity();        // I
+  jac_ans.block(0, 2, 2, 2).setIdentity() *= h;     // h*I
+  jac_ans.block(0, 4, 2, 2).setIdentity() *= h2_2;  // h^2/2 * I
+
+  jac_ans.block(2, 2, 2, 2).setIdentity();          // I
+  jac_ans.block(2, 4, 2, 2).setIdentity() *= h;     // h*I
+
+  jac_ans.block(4, 4, 2, 2).setIdentity();          // I
+
+  // 填充 Psi 矩阵 (State-Control, 6x2)
+  jac_ans.block(0, 6, 2, 2).setIdentity() *= h3_6;  // h^3/6 * I
+  jac_ans.block(2, 6, 2, 2).setIdentity() *= h2_2;  // h^2/2 * I
+  jac_ans.block(4, 6, 2, 2).setIdentity() *= h;     // h*I
+
+  // 验证计算的 Jacobian 是否等于解析解
+  EXPECT_TRUE(jac.isApprox(jac_ans, 1e-9)) << "RK4 Jacobian calculation failed.";
+}
+
 TEST(TripleIntegratorTest, DerivativeChecks) {
   srand(0);
   int degrees_of_freedom = 2;

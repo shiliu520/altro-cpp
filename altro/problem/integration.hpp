@@ -197,5 +197,266 @@ class RungeKutta4 final : public ExplicitIntegrator<NStates, NControls> {
   std::array<MatrixNxMd<NStates, NControls>, 4> dB_;
 };
 
+/**
+ * @brief Fourth-order explicit Runge Kutta integrator with optimized memory usage.
+ * 
+ * De-facto explicit integrator for many robotics applications.
+ * Good balance between accuracy and computational effort.
+ * This implementation minimizes temporary object creation for better performance.
+ * 
+ * @tparam NStates State dimension
+ * @tparam NControls Control dimension
+ */
+template <int NStates, int NControls>
+class RungeKutta4Fast final : public ExplicitIntegrator<NStates, NControls> {
+  using typename ExplicitIntegrator<NStates, NControls>::DynamicsPtr;
+  
+public:
+  // RK4 coefficients as compile-time constants
+  static constexpr double STAGE_WEIGHT_2 = 0.5;
+  static constexpr double STAGE_WEIGHT_3 = 0.5; 
+  static constexpr double STAGE_WEIGHT_4 = 1.0;
+  static constexpr double RESULT_WEIGHT_1 = 1.0 / 6.0;
+  static constexpr double RESULT_WEIGHT_2 = 1.0 / 3.0;
+  static constexpr double RESULT_WEIGHT_3 = 1.0 / 3.0;
+  static constexpr double RESULT_WEIGHT_4 = 1.0 / 6.0;
+
+  RungeKutta4Fast(int n, int m) : ExplicitIntegrator<NStates, NControls>(n, m) {
+    Init();
+  }
+  
+  RungeKutta4Fast() : ExplicitIntegrator<NStates, NControls>() {
+    Init();
+  }
+
+  /**
+   * @brief Integrate the dynamics using RK4 method
+   * 
+   * @param dynamics System dynamics function
+   * @param x Current state
+   * @param u Control input  
+   * @param t Current time
+   * @param h Time step
+   * @param xnext Next state (output)
+   */
+  void Integrate(const DynamicsPtr& dynamics, const VectorXdRef& x, 
+                 const VectorXdRef& u, float t, float h, 
+                 Eigen::Ref<VectorXd> xnext) override {
+    
+    // Validate inputs
+    assert(x.size() == this->StateDimension());
+    assert(u.size() == this->ControlDimension());
+    assert(xnext.size() == this->StateDimension());
+    
+    const double half_h = STAGE_WEIGHT_2 * h;  // 0.5 * h
+    
+    // Stage 1: k1 = f(t, x)
+    dynamics->Evaluate(x, u, t, k1_);
+    
+    // Stage 2: k2 = f(t + h/2, x + h/2 * k1)
+    temp_state_.noalias() = k1_ * half_h;
+    temp_state_ += x;
+    dynamics->Evaluate(temp_state_, u, t + half_h, k2_);
+    
+    // Stage 3: k3 = f(t + h/2, x + h/2 * k2)  
+    temp_state_.noalias() = k2_ * half_h;
+    temp_state_ = x + temp_state_;  // Use expression template
+    dynamics->Evaluate(temp_state_, u, t + half_h, k3_);
+    
+    // Stage 4: k4 = f(t + h, x + h * k3)
+    temp_state_.noalias() = k3_ * h;
+    temp_state_ = x + temp_state_;
+    dynamics->Evaluate(temp_state_, u, t + h, k4_);
+    
+    // Combine results: xnext = x + h/6 * (k1 + 2*k2 + 2*k3 + k4)
+    xnext.noalias() = k1_ * RESULT_WEIGHT_1;
+    xnext.noalias() += k2_ * RESULT_WEIGHT_2;
+    xnext.noalias() += k3_ * RESULT_WEIGHT_3; 
+    xnext.noalias() += k4_ * RESULT_WEIGHT_4;
+    xnext *= h;
+    xnext += x;
+  }
+
+  /**
+   * @brief Compute the Jacobian of the RK4 integration step
+   * 
+   * @param dynamics System dynamics function
+   * @param x Current state
+   * @param u Control input
+   * @param t Current time  
+   * @param h Time step
+   * @param jac Jacobian matrix (output)
+   */
+void Jacobian(const DynamicsPtr& dynamics, const VectorXdRef& x,
+              const VectorXdRef& u, float t, float h,
+              Eigen::Ref<MatrixXd> jac) override {
+    
+    const int n = dynamics->StateDimension();
+    const int m = dynamics->ControlDimension();
+    const double half_h = STAGE_WEIGHT_2 * h;
+    
+    // Validate dimensions
+    assert(x.size() == n);
+    assert(u.size() == m);
+    assert(jac.rows() == n);
+    assert(jac.cols() == n + m);
+    
+    // Compute intermediate states for Jacobian evaluation
+    dynamics->Evaluate(x, u, t, k1_);
+    
+    temp_state_.noalias() = k1_ * half_h;
+    temp_state_ += x;
+    dynamics->Evaluate(temp_state_, u, t + half_h, k2_);
+    
+    temp_state_.noalias() = k2_ * half_h;
+    temp_state_ = x + temp_state_;
+    dynamics->Evaluate(temp_state_, u, t + half_h, k3_);
+    
+    // Evaluate Jacobians at each stage
+    dynamics->Jacobian(x, u, t, jac);
+    A_[0] = jac.topLeftCorner(n, n);
+    B_[0] = jac.topRightCorner(n, m);
+    
+    temp_state_.noalias() = k1_ * half_h;
+    temp_state_ += x;
+    dynamics->Jacobian(temp_state_, u, t + half_h, jac);
+    A_[1] = jac.topLeftCorner(n, n);
+    B_[1] = jac.topRightCorner(n, m);
+    
+    temp_state_.noalias() = k2_ * half_h;
+    temp_state_ = x + temp_state_;
+    dynamics->Jacobian(temp_state_, u, t + half_h, jac);
+    A_[2] = jac.topLeftCorner(n, n);
+    B_[2] = jac.topRightCorner(n, m);
+    
+    temp_state_.noalias() = k3_ * h;
+    temp_state_ = x + temp_state_;
+    dynamics->Jacobian(temp_state_, u, t + h, jac);
+    A_[3] = jac.topLeftCorner(n, n);
+    B_[3] = jac.topRightCorner(n, m);
+    
+    // Compute incremental Jacobians using noalias()
+    // Stage 1: f(x, u, t)
+    dynamics->Jacobian(x, u, t, jac);
+    A_[0] = jac.topLeftCorner(n, n);
+    B_[0] = jac.topRightCorner(n, m);
+    
+    // Stage 2: f(x + h/2*k1, u, t + h/2)
+    temp_state_.noalias() = x + k1_ * half_h; // 使用 k1_ 的结果，与积分步保持一致
+    dynamics->Jacobian(temp_state_, u, t + half_h, jac);
+    A_[1] = jac.topLeftCorner(n, n);
+    B_[1] = jac.topRightCorner(n, m);
+    
+    // Stage 3: f(x + h/2*k2, u, t + h/2)
+    temp_state_.noalias() = x + k2_ * half_h; // 使用 k2_ 的结果
+    dynamics->Jacobian(temp_state_, u, t + half_h, jac);
+    A_[2] = jac.topLeftCorner(n, n);
+    B_[2] = jac.topRightCorner(n, m);
+    
+    // Stage 4: f(x + h*k3, u, t + h)
+    temp_state_.noalias() = x + k3_ * h; // 使用 k3_ 的结果
+    dynamics->Jacobian(temp_state_, u, t + h, jac);
+    A_[3] = jac.topLeftCorner(n, n);
+    B_[3] = jac.topRightCorner(n, m);
+    
+    // --- 3. Compute incremental Jacobians (dKi/dx and dKi/du) using CORRECT recursion ---
+    const MatrixXd I = MatrixXd::Identity(n, n);
+    const double HALF_H = STAGE_WEIGHT_2 * h; // STAGE_WEIGHT_2 * h
+    const double FULL_H = STAGE_WEIGHT_4 * h; // STAGE_WEIGHT_4 * h
+
+    // K1 Jacobians (dA_[0] = dK1/dx, dB_[0] = dK1/du)
+    // dK1/dx = A0; dK1/du = B0
+    dA_[0].noalias() = A_[0];
+    dB_[0].noalias() = B_[0];
+
+    // K2 Jacobians (dK2/dx, dK2/du)
+    // dK2/dx = A1 * (I + h/2 * dK1/dx)
+    dA_[1].noalias() = A_[1] * (I + HALF_H * dA_[0]);
+    // dK2/du = B1 + A1 * (h/2 * dK1/du)
+    dB_[1].noalias() = B_[1] + A_[1] * (HALF_H * dB_[0]);
+
+    // K3 Jacobians (dK3/dx, dK3/du)
+    // dK3/dx = A2 * (I + h/2 * dK2/dx)
+    dA_[2].noalias() = A_[2] * (I + HALF_H * dA_[1]);
+    // dK3/u = B2 + A2 * (h/2 * dK2/du)
+    dB_[2].noalias() = B_[2] + A_[2] * (HALF_H * dB_[1]);
+
+    // K4 Jacobians (dK4/dx, dK4/du)
+    // dK4/dx = A3 * (I + h * dK3/dx)
+    dA_[3].noalias() = A_[3] * (I + FULL_H * dA_[2]);
+    // dK4/u = B3 + A3 * (h * dK3/du)
+    dB_[3].noalias() = B_[3] + A_[3] * (FULL_H * dB_[2]);
+
+    // --- 4. Combine results: Phi = d(xnext)/dx and Psi = d(xnext)/du ---
+    // Phi = I + h/6 * (dK1/dx + 2*dK2/dx + 2*dK3/dx + dK4/dx)
+    jac.topLeftCorner(n, n).noalias() =
+        I + h * (RESULT_WEIGHT_1 * dA_[0] +
+                 RESULT_WEIGHT_2 * dA_[1] +
+                 RESULT_WEIGHT_3 * dA_[2] +
+                 RESULT_WEIGHT_4 * dA_[3]);
+
+    // Psi = h/6 * (dK1/du + 2*dK2/du + 2*dK3/du + dK4/du)
+    jac.topRightCorner(n, m).noalias() =
+        h * (RESULT_WEIGHT_1 * dB_[0] +
+             RESULT_WEIGHT_2 * dB_[1] +
+             RESULT_WEIGHT_3 * dB_[2] +
+             RESULT_WEIGHT_4 * dB_[3]);
+}
+
+  // Delete copy operations to prevent accidental sharing of workspace
+  RungeKutta4Fast(const RungeKutta4Fast&) = delete;
+  RungeKutta4Fast& operator=(const RungeKutta4Fast&) = delete;
+  
+  // Allow move operations if needed
+  RungeKutta4Fast(RungeKutta4Fast&&) = default;
+  RungeKutta4Fast& operator=(RungeKutta4Fast&&) = default;
+
+private:
+  void Init() {
+    const int n = this->StateDimension();
+    const int m = this->ControlDimension();
+    
+    k1_.setZero(n);
+    k2_.setZero(n);
+    k3_.setZero(n);
+    k4_.setZero(n);
+    temp_state_.setZero(n);
+    
+    for (int i = 0; i < 4; ++i) {
+      A_[i].setZero(n, n);
+      B_[i].setZero(n, m);
+      dA_[i].setZero(n, n);
+      dB_[i].setZero(n, m);
+    }
+  }
+
+  // Workspace variables - mutable to maintain const correctness in interface
+  VectorNd<NStates> k1_;
+  VectorNd<NStates> k2_; 
+  VectorNd<NStates> k3_;
+  VectorNd<NStates> k4_;
+  VectorNd<NStates> temp_state_;  // Reusable temporary for intermediate states
+  
+  std::array<MatrixNxMd<NStates, NStates>, 4> A_;
+  std::array<MatrixNxMd<NStates, NControls>, 4> B_;
+  std::array<MatrixNxMd<NStates, NStates>, 4> dA_;
+  std::array<MatrixNxMd<NStates, NControls>, 4> dB_;
+};
+
+template <int NStates, int NControls>
+constexpr double RungeKutta4Fast<NStates, NControls>::STAGE_WEIGHT_2;
+template <int NStates, int NControls>
+constexpr double RungeKutta4Fast<NStates, NControls>::STAGE_WEIGHT_3;
+template <int NStates, int NControls>
+constexpr double RungeKutta4Fast<NStates, NControls>::STAGE_WEIGHT_4;
+template <int NStates, int NControls>
+constexpr double RungeKutta4Fast<NStates, NControls>::RESULT_WEIGHT_1;
+template <int NStates, int NControls>
+constexpr double RungeKutta4Fast<NStates, NControls>::RESULT_WEIGHT_2;
+template <int NStates, int NControls>
+constexpr double RungeKutta4Fast<NStates, NControls>::RESULT_WEIGHT_3;
+template <int NStates, int NControls>
+constexpr double RungeKutta4Fast<NStates, NControls>::RESULT_WEIGHT_4;
+
 }  // namespace problem
 }  // namespace altro
