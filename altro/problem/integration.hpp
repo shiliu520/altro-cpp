@@ -312,29 +312,6 @@ void Jacobian(const DynamicsPtr& dynamics, const VectorXdRef& x,
     temp_state_ = x + temp_state_;
     dynamics->Evaluate(temp_state_, u, t + half_h, k3_);
     
-    // Evaluate Jacobians at each stage
-    dynamics->Jacobian(x, u, t, jac);
-    A_[0] = jac.topLeftCorner(n, n);
-    B_[0] = jac.topRightCorner(n, m);
-    
-    temp_state_.noalias() = k1_ * half_h;
-    temp_state_ += x;
-    dynamics->Jacobian(temp_state_, u, t + half_h, jac);
-    A_[1] = jac.topLeftCorner(n, n);
-    B_[1] = jac.topRightCorner(n, m);
-    
-    temp_state_.noalias() = k2_ * half_h;
-    temp_state_ = x + temp_state_;
-    dynamics->Jacobian(temp_state_, u, t + half_h, jac);
-    A_[2] = jac.topLeftCorner(n, n);
-    B_[2] = jac.topRightCorner(n, m);
-    
-    temp_state_.noalias() = k3_ * h;
-    temp_state_ = x + temp_state_;
-    dynamics->Jacobian(temp_state_, u, t + h, jac);
-    A_[3] = jac.topLeftCorner(n, n);
-    B_[3] = jac.topRightCorner(n, m);
-    
     // Compute incremental Jacobians using noalias()
     // Stage 1: f(x, u, t)
     dynamics->Jacobian(x, u, t, jac);
