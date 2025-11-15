@@ -17,9 +17,9 @@ namespace ilqr {
 
 // TODO(bjackson): implement other regularization methods
 enum class BackwardPassRegularization {
-  kControlOnly,
-  // kStateOnly,
-  // kStateControl
+  kControlOnly = 0,
+  kStateControl = 1,
+  kStateOnly = 2
 };
 
 /**
@@ -182,6 +182,22 @@ public:
           Eigen::Matrix<double, m, m>::Identity(this->m_, this->m_) * rho;
       break;
     }
+    case BackwardPassRegularization::kStateControl: {
+        Eigen::Block<JacType, n, n> A = dynamics_expansion_.GetA();
+        Eigen::Block<JacType, n, m> B = dynamics_expansion_.GetB();
+        Eigen::Matrix<double, n, n> rho_I_n = Eigen::Matrix<double, n, n>::Identity(this->n_, this->n_) * rho;
+        // Quu_ = Quu + Bᵀ * rho * I_n * B
+        action_value_expansion_regularized_.dudu() += B.transpose() * rho_I_n * B;
+        // Qux_ = Qux + Bᵀ * rho * I_n * A
+        action_value_expansion_regularized_.dxdu() += A.transpose() * rho_I_n * B;
+
+        // action_value_expansion_regularized_.dudu() += rho * (B.transpose() * B);
+        // action_value_expansion_regularized_.dxdu() += rho * (A.transpose() * B);
+        break;
+    }
+    default:
+        ALTRO_ASSERT(reg_type <= BackwardPassRegularization::kStateControl,
+          "Reg_type should be a valid BackwardPassRegularization enum value [0, 1].");
     }
   }
 
