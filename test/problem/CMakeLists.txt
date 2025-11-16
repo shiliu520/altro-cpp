@@ -81,3 +81,15 @@ target_link_libraries(quadratic_cost_test
   utils
 )
 gtest_discover_tests(quadratic_cost_test)
+
+add_executable(traj_plan_cost_test
+  traj_plan_cost_test.cpp
+)
+target_link_libraries(traj_plan_cost_test
+  PRIVATE
+  gtest_main
+  cost_function_examples
+  common
+  utils
+)
+gtest_discover_tests(traj_plan_cost_test)
