@@ -3,3 +3,5 @@ cmake-build*
 .vscode/
 Testing/
 .idea/
+.clangd/
+compile_commands.json

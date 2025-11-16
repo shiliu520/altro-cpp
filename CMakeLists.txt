@@ -4,6 +4,35 @@ project(AltroCpp VERSION 0.3.4)
 
 set(CMAKE_CXX_STANDARD 14)
 
+###########################################################################
+# Automatically generate compile_commands.json + include the project root directory to the header file search path
+###########################################################################
+# Enable compilation database (clangd dependency)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Generate compile_commands.json for LSP" FORCE)
+# Automatically add the current directory (project root) to the header file search path
+set(CMAKE_INCLUDE_CURRENT_DIR ON CACHE BOOL "Include current directory in include path" FORCE)
+
+# (Optional) Soft link compile_commands.json to the project root directory (avoid manually creating it each time)
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+  set(COMPILE_COMMANDS_FILE "${CMAKE_BINARY_DIR}/compile_commands.json")
+  if(EXISTS ${COMPILE_COMMANDS_FILE} AND NOT EXISTS "${PROJECT_SOURCE_DIR}/compile_commands.json")
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} -E create_symlink
+      ${COMPILE_COMMANDS_FILE}
+      "${PROJECT_SOURCE_DIR}/compile_commands.json"
+      RESULT_VARIABLE SYMLINK_RESULT
+      OUTPUT_QUIET
+      ERROR_QUIET
+    )
+    if(SYMLINK_RESULT EQUAL 0)
+      message(STATUS "Created symlink: ${PROJECT_SOURCE_DIR}/compile_commands.json -> ${COMPILE_COMMANDS_FILE}")
+    else()
+      message(WARNING "Failed to create symlink for compile_commands.json")
+    endif()
+  endif()
+endif()
+###########################################################################
+
 add_compile_options(-Wall -Wextra -pedantic -Werror)
 
 # Defines GNU standard installation directories
