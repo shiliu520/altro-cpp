@@ -5,6 +5,8 @@ add_library(example_problems
   unicycle.cpp
   truck.hpp
   truck.cpp
+  car_extended.hpp
+  car_extended.cpp
 )
 target_link_libraries(example_problems
   PUBLIC

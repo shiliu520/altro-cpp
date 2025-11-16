@@ -1,6 +1,7 @@
 // Copyright [2021] Optimus Ride Inc.
 
 #include <memory>
+#include <vector>
 
 #include "examples/traj_plan_cost.hpp"
 
@@ -237,8 +238,8 @@ void LinearJerkCost::Hessian(const VectorXdRef& x, const VectorXdRef& u,
 
 // ---------- 5. Simple Lateral Distance Cost ----------
 LateralDistanceHuberCost::LateralDistanceHuberCost(
-    const Eigen::Vector2d& proj_pos, double weight, double delta)
-    : proj_pos_(proj_pos), weight_(weight), delta_(delta) {}
+    const Eigen::Vector2d& proj_pos, double weight, double delta, bool terminal)
+    : proj_pos_(proj_pos), weight_(weight), delta_(delta), terminal_(terminal) {}
 
 double LateralDistanceHuberCost::Evaluate(const VectorXdRef& x, const VectorXdRef& u) {
   ALTRO_UNUSED(u);
@@ -338,6 +339,61 @@ void TargetSpeedHuberCost::Hessian(const VectorXdRef& x, const VectorXdRef& u,
   dxdx(4, 4) = weight_ * d2huber_dv2;
 }
 
+SumCost::SumCost(const std::vector<std::shared_ptr<problem::CostFunction>>& costs)
+    : costs_(costs) {
+  if (costs_.empty()) {
+    throw std::invalid_argument("SumCost: cost list is empty");
+  }
+}
 
+double SumCost::Evaluate(const VectorXdRef& x, const VectorXdRef& u) {
+  double total = 0.0;
+  for (const auto& cost : costs_) {
+    total += cost->Evaluate(x, u);
+  }
+  return total;
+}
+
+void SumCost::Gradient(const VectorXdRef& x, const VectorXdRef& u,
+                       Eigen::Ref<VectorXd> dx, Eigen::Ref<VectorXd> du) {
+  dx.setZero();
+  du.setZero();
+
+  for (const auto& cost : costs_) {
+    VectorXd c_dx = VectorXd::Zero(dx.size());
+    VectorXd c_du = VectorXd::Zero(du.size());
+    cost->Gradient(x, u, c_dx, c_du);
+    dx += c_dx;
+    du += c_du;
+  }
+}
+
+void SumCost::Hessian(const VectorXdRef& x, const VectorXdRef& u,
+                      Eigen::Ref<MatrixXd> dxdx,
+                      Eigen::Ref<MatrixXd> dxdu,
+                      Eigen::Ref<MatrixXd> dudu) {
+  dxdx.setZero();
+  dxdu.setZero();
+  dudu.setZero();
+
+  for (const auto& cost : costs_) {
+    MatrixXd c_dxdx = MatrixXd::Zero(dxdx.rows(), dxdx.cols());
+    MatrixXd c_dxdu = MatrixXd::Zero(dxdu.rows(), dxdu.cols());
+    MatrixXd c_dudu = MatrixXd::Zero(dudu.rows(), dudu.cols());
+    cost->Hessian(x, u, c_dxdx, c_dxdu, c_dudu);
+    dxdx += c_dxdx;
+    dxdu += c_dxdu;
+    dudu += c_dudu;
+  }
+}
+
+bool SumCost::HasHessian() const {
+  for (const auto& cost : costs_) {
+    if (!cost->HasHessian()) {
+      return false;
+    }
+  }
+  return true;
+}
 }  // namespace examples
 }  // namespace altro

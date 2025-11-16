@@ -58,7 +58,8 @@ class LateralDistanceHuberCost : public problem::CostFunction {
  public:
   LateralDistanceHuberCost(const Eigen::Vector2d& proj_pos,
                            double weight = 1.0,
-                           double delta = 1.0);
+                           double delta = 1.0,
+                           bool terminal = false);
 
   int StateDimension() const override { return 6; }
   int ControlDimension() const override { return 2; }
@@ -74,6 +75,7 @@ class LateralDistanceHuberCost : public problem::CostFunction {
   Eigen::Vector2d proj_pos_;
   double weight_;
   double delta_;
+  bool terminal_;
 };
 
 class TargetSpeedHuberCost : public problem::CostFunction {
@@ -136,6 +138,34 @@ class LinearJerkCost : public problem::CostFunction {
  private:
   double weight_;
   bool terminal_;
+};
+
+class SumCost : public problem::CostFunction {
+ public:
+  explicit SumCost(const std::vector<std::shared_ptr<problem::CostFunction>>& costs);
+
+  SumCost(const SumCost&) = delete;
+  SumCost& operator=(const SumCost&) = delete;
+  SumCost(SumCost&&) = default;
+  SumCost& operator=(SumCost&&) = default;
+
+  double Evaluate(const VectorXdRef& x, const VectorXdRef& u) override;
+
+  void Gradient(const VectorXdRef& x, const VectorXdRef& u,
+                Eigen::Ref<VectorXd> dx, Eigen::Ref<VectorXd> du) override;
+
+  void Hessian(const VectorXdRef& x, const VectorXdRef& u,
+               Eigen::Ref<MatrixXd> dxdx,
+               Eigen::Ref<MatrixXd> dxdu,
+               Eigen::Ref<MatrixXd> dudu) override;
+
+  bool HasHessian() const override;
+
+  int StateDimension() const override { return 6; }
+  int ControlDimension() const override { return 2; }
+
+ private:
+  std::vector<std::shared_ptr<problem::CostFunction>> costs_;
 };
 
 }  // namespace examples

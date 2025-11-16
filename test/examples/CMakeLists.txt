@@ -32,3 +32,14 @@ target_link_libraries(example_truck_test
   Python3::NumPy
 )
 gtest_discover_tests(example_truck_test)
+
+
+add_executable(example_car_test
+  example_car_test.cpp
+)
+target_link_libraries(example_car_test
+  PRIVATE
+  gtest_main
+  example_problems
+)
+gtest_discover_tests(example_car_test)
