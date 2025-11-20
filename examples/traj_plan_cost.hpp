@@ -5,6 +5,7 @@
 #include "altro/eigentypes.hpp"
 #include "altro/utils/utils.hpp"
 #include "examples/quadratic_cost.hpp"
+#include "examples/reference_line.h"
 #include "altro/problem/costfunction.hpp"
 
 namespace altro {
@@ -139,6 +140,45 @@ class LinearJerkCost : public problem::CostFunction {
   double weight_;
   bool terminal_;
 };
+
+class ReferenceTrackingCost : public problem::CostFunction {
+public:
+    ReferenceTrackingCost(
+        std::shared_ptr<const ReferenceLine> ref_line,
+        double weight_lateral = 1.0,
+        double weight_speed = 1.0,
+        double delta_lateral = 1.0,
+        double delta_speed = 1.0,
+        bool terminal = false
+    );
+
+    int StateDimension() const override { return 6; }
+    int ControlDimension() const override { return 2; }
+
+    double Evaluate(const VectorXdRef& x, const VectorXdRef& u) override;
+    void Gradient(const VectorXdRef& x, const VectorXdRef& u,
+                  Eigen::Ref<VectorXd> dx, Eigen::Ref<VectorXd> du) override;
+    void Hessian(const VectorXdRef& x, const VectorXdRef& u,
+                 Eigen::Ref<MatrixXd> dxdx, Eigen::Ref<MatrixXd> dxdu,
+                 Eigen::Ref<MatrixXd> dudu) override;
+
+private:
+    const ReferenceLine::ProjectionResult& GetProjection(const Eigen::VectorXd& x) const;
+
+    // Cache to avoid repeated projection
+    mutable struct Cache {
+        Eigen::VectorXd x;
+        ReferenceLine::ProjectionResult proj;
+        int prev_index = 0;
+        bool valid = false;
+    } cache_;
+
+    std::shared_ptr<const ReferenceLine> ref_line_;
+    double w_lat_, w_vel_;
+    double delta_lat_, delta_vel_;
+    bool terminal_;
+};
+
 
 class SumCost : public problem::CostFunction {
  public:

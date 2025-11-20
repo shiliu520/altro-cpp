@@ -15,6 +15,7 @@ CarExtendedProblem::CarExtendedProblem() {
 
 void CarExtendedProblem::SetScenario(Scenario scenario) {
   scenario_ = scenario;
+  std::vector<Eigen::Vector4d> traj;
 
   switch (scenario) {
     case kLaneChange:
@@ -31,6 +32,18 @@ void CarExtendedProblem::SetScenario(Scenario scenario) {
       x0 << 0, 0, 0, 0, 0.0, 0;   // [x, y, θ, κ, v, a]
       xf << 20, 1, 0, 0, 10.0, 0;
       u0 << 0.05, 0.1;
+
+      traj.resize(N+1);
+      for (int k = 0; k <= N; ++k) {
+        double x_ref = xf(0) * static_cast<double>(k) / N;  // 0 → 20
+        double y_ref = 0.0;                                 // fixed!
+        double theta_ref = 0.0;                             // along x-axis
+        double v_ref = xf(4);                               // 10.0
+
+        traj[k] = Eigen::Vector4d(x_ref, y_ref, theta_ref, v_ref);
+      }
+      ref_line_ = std::make_shared<altro::examples::ReferenceLine>(std::move(traj));
+
       break;
     default:
       throw std::invalid_argument("Unknown scenario");
@@ -104,6 +117,20 @@ altro::problem::Problem CarExtendedProblem::MakeProblem(bool add_constraints) {
         costs.push_back(std::make_shared<altro::examples::LateralDistanceHuberCost>(
             ref_point, w_lateral * h, delta_lateral, false));
       }
+    }
+
+    // tracking cost
+    if (w_target_speed > 0 || w_lateral > 0)
+    {
+      auto tracking_cost = std::make_shared<altro::examples::ReferenceTrackingCost>(
+          ref_line_,
+          w_lateral * h,
+          w_target_speed * h,
+          delta_lateral,
+          delta_speed,
+          false  // terminal flag
+      );
+      costs.push_back(tracking_cost);
     }
 
     if (w_centric_acc > 0) {

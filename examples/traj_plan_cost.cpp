@@ -339,6 +339,108 @@ void TargetSpeedHuberCost::Hessian(const VectorXdRef& x, const VectorXdRef& u,
   dxdx(4, 4) = weight_ * d2huber_dv2;
 }
 
+ReferenceTrackingCost::ReferenceTrackingCost(
+    std::shared_ptr<const ReferenceLine> ref_line,
+    double weight_lateral,
+    double weight_speed,
+    double delta_lateral,
+    double delta_speed,
+    bool terminal)
+    : ref_line_(ref_line),
+      w_lat_(weight_lateral),
+      w_vel_(weight_speed),
+      delta_lat_(delta_lateral),
+      delta_vel_(delta_speed),
+      terminal_(terminal) {}
+
+const ReferenceLine::ProjectionResult&
+ReferenceTrackingCost::GetProjection(const Eigen::VectorXd& x) const {
+    if (!cache_.valid || !x.isApprox(cache_.x)) {
+        cache_.x = x;
+        Eigen::Vector2d vehicle_pos(x[0], x[1]);
+        cache_.proj = ref_line_->Project(vehicle_pos, cache_.prev_index);
+        cache_.prev_index = cache_.proj.next_index_hint;
+        cache_.valid = true;
+    }
+    return cache_.proj;
+}
+
+double ReferenceTrackingCost::Evaluate(const VectorXdRef& x, const VectorXdRef& u) {
+    ALTRO_UNUSED(u);
+    const auto& proj = GetProjection(x);
+
+    // Lateral error: perpendicular distance to path
+    double dx = x[0] - proj.pos.x();
+    double dy = x[1] - proj.pos.y();
+    double e_lat = dx * std::sin(proj.theta) - dy * std::cos(proj.theta);
+
+    // Speed error
+    double e_vel = x[4] - proj.vel;
+
+    double cost_lat = w_lat_ * HuberLoss(e_lat, delta_lat_);
+    double cost_vel = w_vel_ * HuberLoss(e_vel, delta_vel_);
+
+    return cost_lat + cost_vel;
+}
+
+void ReferenceTrackingCost::Gradient(const VectorXdRef& x, const VectorXdRef& u,
+                                    Eigen::Ref<VectorXd> dx, Eigen::Ref<VectorXd> du) {
+    ALTRO_UNUSED(u);
+    du.setZero();
+    dx.setZero();
+
+    const auto& proj = GetProjection(x);
+
+    // --- Lateral part ---
+    double dx_val = x[0] - proj.pos.x();
+    double dy_val = x[1] - proj.pos.y();
+    double e_lat = dx_val * std::sin(proj.theta) - dy_val * std::cos(proj.theta);
+    double dhuber_dlat = HuberLossDerivative(e_lat, delta_lat_);
+
+    // ∂e_lat/∂x = sin(θ), ∂e_lat/∂y = -cos(θ)
+    dx[0] += w_lat_ * dhuber_dlat * std::sin(proj.theta);
+    dx[1] += w_lat_ * dhuber_dlat * (-std::cos(proj.theta));
+
+    // --- Speed part ---
+    double e_vel = x[4] - proj.vel;
+    double dhuber_dvel = HuberLossDerivative(e_vel, delta_vel_);
+    dx[4] += w_vel_ * dhuber_dvel;
+}
+
+void ReferenceTrackingCost::Hessian(const VectorXdRef& x, const VectorXdRef& u,
+                                    Eigen::Ref<MatrixXd> dxdx, Eigen::Ref<MatrixXd> dxdu,
+                                    Eigen::Ref<MatrixXd> dudu) {
+    ALTRO_UNUSED(u);
+    dxdu.setZero();
+    dudu.setZero();
+    dxdx.setZero();
+
+    const auto& proj = GetProjection(x);
+
+    // --- Lateral Hessian (2x2 block) ---
+    double sin_t = std::sin(proj.theta);
+    double cos_t = std::cos(proj.theta);
+
+    double dx_val = x[0] - proj.pos.x();
+    double dy_val = x[1] - proj.pos.y();
+    double e_lat = dx_val * sin_t - dy_val * cos_t;
+
+    // double dhuber_dlat = HuberLossDerivative(e_lat, delta_lat_);
+    double d2huber_dlat2 = (std::abs(e_lat) <= delta_lat_) ? 1.0 : 0.0;
+
+    // ∂²cost/∂x² = w_lat * [ d2huber * (∂e/∂x)^2 + dhuber * ∂²e/∂x² ]
+    // But e_lat is linear in x,y → ∂²e/∂x² = 0
+    // So Hessian_lat = w_lat * d2huber_dlat2 * [sin_t; -cos_t] * [sin_t, -cos_t]
+    Eigen::Vector2d grad_e_lat(sin_t, -cos_t);
+    Eigen::Matrix2d hess_lat = w_lat_ * d2huber_dlat2 * (grad_e_lat * grad_e_lat.transpose());
+    dxdx.block<2, 2>(0, 0) = hess_lat;
+
+    // --- Speed Hessian (scalar) ---
+    double e_vel = x[4] - proj.vel;
+    double d2huber_dvel2 = (std::abs(e_vel) <= delta_vel_) ? 1.0 : 0.0;
+    dxdx(4, 4) = w_vel_ * d2huber_dvel2;
+}
+
 SumCost::SumCost(const std::vector<std::shared_ptr<problem::CostFunction>>& costs)
     : costs_(costs) {
   if (costs_.empty()) {
