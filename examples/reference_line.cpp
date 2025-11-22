@@ -1,6 +1,25 @@
-#include "examples/reference_line.h"
+#include "examples/reference_line.hpp"
 #include <limits>
 #include <algorithm>
+
+inline double NormalizeAngle(double angle) {
+    double a = std::fmod(angle + M_PI, 2.0 * M_PI);
+    if (a < 0) a += 2.0 * M_PI;
+    return a - M_PI;
+}
+
+inline double InterpolateAngle(double a0, double a1, double t) {
+    double diff = NormalizeAngle(a1 - a0);
+    return NormalizeAngle(a0 + t * diff);
+}
+
+template <typename T>
+const T& safe_clamp(const T& value, const T& low, const T& high) {
+    const T& real_low = (low < high) ? low : high;
+    const T& real_high = (low < high) ? high : low;
+    return (value < real_low) ? real_low : (value > real_high) ? real_high : value;
+}
+
 
 namespace altro {
 namespace examples {
@@ -13,29 +32,91 @@ ReferenceLine::ProjectionResult ReferenceLine::Project(
         throw std::runtime_error("Reference trajectory is empty!");
     }
 
-    int n = static_cast<int>(trajectory_.size());
-    int start = std::max(0, prev_index_hint - 5);
-    int end = std::min(n - 1, prev_index_hint + 5);
+    const size_t n = trajectory_.size();
 
-    int best_i = start;
-    double min_dist2 = (vehicle_pos - trajectory_[start].head<2>()).squaredNorm();
+    if (n == 1) {
+        const auto& p = trajectory_[0];
+        return ProjectionResult{
+            p.head<2>(),
+            p(2),
+            p(3),
+            0
+        };
+    }
 
-    for (int i = start + 1; i <= end; ++i) {
-        double dist2 = (vehicle_pos - trajectory_[i].head<2>()).squaredNorm();
-        if (dist2 < min_dist2) {
-            min_dist2 = dist2;
-            best_i = i;
+    prev_index_hint = safe_clamp(prev_index_hint, 0, static_cast<int>(n) - 1);
+
+    const int COARSE_WINDOW = 30;
+    int coarse_start = std::max(0, prev_index_hint - COARSE_WINDOW);
+    int coarse_end = std::min(static_cast<int>(n) - 1, prev_index_hint + COARSE_WINDOW);
+
+    int best_point_idx = coarse_start;
+    double min_dist2 = (vehicle_pos - trajectory_[coarse_start].head<2>()).squaredNorm();
+
+    for (int i = coarse_start + 1; i <= coarse_end; ++i) {
+        double d2 = (vehicle_pos - trajectory_[i].head<2>()).squaredNorm();
+        if (d2 < min_dist2) {
+            min_dist2 = d2;
+            best_point_idx = i;
         }
     }
 
-    const auto& ref = trajectory_[best_i];
-    ProjectionResult res;
-    res.pos = ref.head<2>();
-    res.theta = ref(2);
-    res.vel = ref(3);
-    res.next_index_hint = best_i;
+    const int FINE_WINDOW = 15; // ( ≥ COARSE_WINDOW/2）
+    int seg_start = std::max(0, best_point_idx - FINE_WINDOW);
+    int seg_end = std::min(static_cast<int>(n) - 2, best_point_idx + FINE_WINDOW);
+    double global_min_dist2 = std::numeric_limits<double>::max();
+    Eigen::Vector2d best_proj_point;
+    double best_theta = 0.0;
+    double best_vel = 0.0;
+    int best_seg_start = seg_start;
 
-    return res;
+    for (int i = seg_start; i <= seg_end; ++i) {
+        const Eigen::Vector2d A = trajectory_[i].head<2>();
+        const Eigen::Vector2d B = trajectory_[i + 1].head<2>();
+
+        Eigen::Vector2d AB = B - A;
+        double ab2 = AB.squaredNorm();
+
+        if (ab2 < 1e-12) {
+            double dist2 = (vehicle_pos - A).squaredNorm();
+            if (dist2 < global_min_dist2) {
+                global_min_dist2 = dist2;
+                best_proj_point = A;
+                best_theta = trajectory_[i](2);
+                best_vel = trajectory_[i](3);
+                best_seg_start = i;
+            }
+            continue;
+        }
+
+        double t = (vehicle_pos - A).dot(AB) / ab2;
+        t = safe_clamp(t, 0.0, 1.0);
+
+        Eigen::Vector2d proj = A + t * AB;
+        double dist2 = (vehicle_pos - proj).squaredNorm();
+
+        if (dist2 < global_min_dist2) {
+            global_min_dist2 = dist2;
+            best_proj_point = proj;
+
+            double theta_A = trajectory_[i](2);
+            double theta_B = trajectory_[i + 1](2);
+            best_theta = InterpolateAngle(theta_A, theta_B, t);
+
+            double vel_A = trajectory_[i](3);
+            double vel_B = trajectory_[i + 1](3);
+            best_vel = vel_A + t * (vel_B - vel_A);
+
+            best_seg_start = i;
+        }
+    }
+
+    return ProjectionResult{
+        best_proj_point,
+        best_theta,
+        best_vel,
+        best_seg_start  // 下次从该线段开始搜索
+    };
 }
 
 }  // namespace examples

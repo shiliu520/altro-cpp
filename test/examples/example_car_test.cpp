@@ -154,11 +154,12 @@ static double ComputeExpectedTotalCost(const altro::problems::CarExtendedProblem
         // 6. Lateral distance Huber loss to y=0 (only in kGtest)
         if (prob.w_lateral > 0
             && prob.GetScenario() == altro::problems::CarExtendedProblem::kGtest) {
-          const double x_ref = prob.xf(0) * static_cast<double>(k) / N;  // same as in problem setup
-          const double y_ref = 0.0;
-          double dx = x(0) - x_ref;
-          double dy = x(1) - y_ref;
-          double e = std::sqrt(dx * dx + dy * dy);  // Euclidean distance to (x_ref, 0)
+        //   const double x_ref = prob.xf(0) * static_cast<double>(k) / N;  // same as in problem setup
+        //   const double y_ref = 0.0;
+        //   double dx = x(0) - x_ref;
+        //   double dy = x(1) - y_ref;
+        //   double e = std::sqrt(dx * dx + dy * dy);  // Euclidean distance to (x_ref, 0)
+        double e = x(1);
 
           double d = prob.delta_lateral;
           double huber = (std::abs(e) <= d) ? (0.5 * e * e) : (d * (std::abs(e) - 0.5 * d));

@@ -5,7 +5,7 @@
 #include "altro/eigentypes.hpp"
 #include "altro/utils/utils.hpp"
 #include "examples/quadratic_cost.hpp"
-#include "examples/reference_line.h"
+#include "examples/reference_line.hpp"
 #include "altro/problem/costfunction.hpp"
 
 namespace altro {

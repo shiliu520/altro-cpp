@@ -102,22 +102,22 @@ altro::problem::Problem CarExtendedProblem::MakeProblem(bool add_constraints) {
 
     // 4. Target speed (Huber)
     // todo: add reference speed profile support
-    if (w_target_speed > 0) {
-      if (scenario_ == kGtest) {
-        costs.push_back(std::make_shared<altro::examples::TargetSpeedHuberCost>(
-            w_target_speed * h, xf(4), delta_speed, false));
-      }
-    }
+    // if (w_target_speed > 0) {
+    //   if (scenario_ == kGtest) {
+    //     costs.push_back(std::make_shared<altro::examples::TargetSpeedHuberCost>(
+    //         w_target_speed * h, xf(4), delta_speed, false));
+    //   }
+    // }
 
     // 5. Lateral distance to reference line (y=0) — Huber
     // todo: add reference line profile support
-    if (w_lateral > 0) {
-      if (scenario_ == kGtest) {
-        Eigen::Vector2d ref_point(xf(0) * static_cast<double>(k) / N, 0.0);  // moving target
-        costs.push_back(std::make_shared<altro::examples::LateralDistanceHuberCost>(
-            ref_point, w_lateral * h, delta_lateral, false));
-      }
-    }
+    // if (w_lateral > 0) {
+    //   if (scenario_ == kGtest) {
+    //     Eigen::Vector2d ref_point(xf(0) * static_cast<double>(k) / N, 0.0);  // moving target
+    //     costs.push_back(std::make_shared<altro::examples::LateralDistanceHuberCost>(
+    //         ref_point, w_lateral * h, delta_lateral, false));
+    //   }
+    // }
 
     // tracking cost
     if (w_target_speed > 0 || w_lateral > 0)

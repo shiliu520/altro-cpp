@@ -21,6 +21,7 @@ target_link_libraries(costfunction_test
   PRIVATE
   gtest_main
   problem
+  cost_function_examples
   common
   fmt::fmt
   utils

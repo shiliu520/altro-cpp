@@ -3,6 +3,8 @@ add_library(cost_function_examples
   quadratic_cost.hpp
   traj_plan_cost.cpp
   traj_plan_cost.hpp
+  reference_line.cpp
+  reference_line.hpp
 )
 target_link_libraries(cost_function_examples
   PUBLIC
