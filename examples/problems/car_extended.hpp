@@ -83,6 +83,7 @@ class CarExtendedProblem {
  private:
   Scenario scenario_ = kQuarterTurn;
   std::shared_ptr<altro::examples::ReferenceLine> ref_line_;
+  std::shared_ptr<altro::examples::ReferenceLineProjector> projector_;
 };
 
 // Implementations

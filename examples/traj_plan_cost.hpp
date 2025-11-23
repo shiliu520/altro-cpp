@@ -144,7 +144,7 @@ class LinearJerkCost : public problem::CostFunction {
 class ReferenceTrackingCost : public problem::CostFunction {
 public:
     ReferenceTrackingCost(
-        std::shared_ptr<const ReferenceLine> ref_line,
+        std::shared_ptr<ReferenceLineProjector> projector,
         double weight_lateral = 1.0,
         double weight_speed = 1.0,
         double delta_lateral = 1.0,
@@ -165,15 +165,7 @@ public:
 private:
     const ReferenceLine::ProjectionResult& GetProjection(const Eigen::VectorXd& x) const;
 
-    // Cache to avoid repeated projection
-    mutable struct Cache {
-        Eigen::VectorXd x;
-        ReferenceLine::ProjectionResult proj;
-        int prev_index = 0;
-        bool valid = false;
-    } cache_;
-
-    std::shared_ptr<const ReferenceLine> ref_line_;
+    std::shared_ptr<ReferenceLineProjector> projector_;
     double w_lat_, w_vel_;
     double delta_lat_, delta_vel_;
     bool terminal_;

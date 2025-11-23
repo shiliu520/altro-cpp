@@ -43,6 +43,7 @@ void CarExtendedProblem::SetScenario(Scenario scenario) {
         traj[k] = Eigen::Vector4d(x_ref, y_ref, theta_ref, v_ref);
       }
       ref_line_ = std::make_shared<altro::examples::ReferenceLine>(std::move(traj));
+      projector_ = std::make_shared<altro::examples::ReferenceLineProjector>(ref_line_);
 
       break;
     default:
@@ -123,7 +124,7 @@ altro::problem::Problem CarExtendedProblem::MakeProblem(bool add_constraints) {
     if (w_target_speed > 0 || w_lateral > 0)
     {
       auto tracking_cost = std::make_shared<altro::examples::ReferenceTrackingCost>(
-          ref_line_,
+          projector_,
           w_lateral * h,
           w_target_speed * h,
           delta_lateral,

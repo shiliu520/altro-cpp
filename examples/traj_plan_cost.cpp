@@ -340,34 +340,22 @@ void TargetSpeedHuberCost::Hessian(const VectorXdRef& x, const VectorXdRef& u,
 }
 
 ReferenceTrackingCost::ReferenceTrackingCost(
-    std::shared_ptr<const ReferenceLine> ref_line,
+    std::shared_ptr<ReferenceLineProjector> projector,
     double weight_lateral,
     double weight_speed,
     double delta_lateral,
     double delta_speed,
     bool terminal)
-    : ref_line_(ref_line),
+    : projector_(std::move(projector)),
       w_lat_(weight_lateral),
       w_vel_(weight_speed),
       delta_lat_(delta_lateral),
       delta_vel_(delta_speed),
       terminal_(terminal) {}
 
-const ReferenceLine::ProjectionResult&
-ReferenceTrackingCost::GetProjection(const Eigen::VectorXd& x) const {
-    if (!cache_.valid || !x.isApprox(cache_.x)) {
-        cache_.x = x;
-        Eigen::Vector2d vehicle_pos(x[0], x[1]);
-        cache_.proj = ref_line_->Project(vehicle_pos, cache_.prev_index);
-        cache_.prev_index = cache_.proj.next_index_hint;
-        cache_.valid = true;
-    }
-    return cache_.proj;
-}
-
 double ReferenceTrackingCost::Evaluate(const VectorXdRef& x, const VectorXdRef& u) {
     ALTRO_UNUSED(u);
-    const auto& proj = GetProjection(x);
+    const auto& proj = projector_->ProjectFromState(x);
 
     // Lateral error: perpendicular distance to path
     double dx = x[0] - proj.pos.x();
@@ -389,7 +377,7 @@ void ReferenceTrackingCost::Gradient(const VectorXdRef& x, const VectorXdRef& u,
     du.setZero();
     dx.setZero();
 
-    const auto& proj = GetProjection(x);
+    auto& proj = projector_->ProjectFromState(x);
 
     // --- Lateral part ---
     double dx_val = x[0] - proj.pos.x();
@@ -415,7 +403,7 @@ void ReferenceTrackingCost::Hessian(const VectorXdRef& x, const VectorXdRef& u,
     dudu.setZero();
     dxdx.setZero();
 
-    const auto& proj = GetProjection(x);
+    const auto& proj = projector_->ProjectFromState(x);
 
     // --- Lateral Hessian (2x2 block) ---
     double sin_t = std::sin(proj.theta);
