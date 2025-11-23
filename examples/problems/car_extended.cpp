@@ -22,8 +22,71 @@ void CarExtendedProblem::SetScenario(Scenario scenario) {
       break;
     case kObstacleAvoidance:
       break;
-    case kQuarterTurn:
+    case kQuarterTurn: {
+      N = 100;
+      tf = 10.0;  // total 10 seconds
+
+      // Initial state: start from rest at origin, heading along x-axis
+      x0 << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;  // [x, y, θ, κ, v, a]
+      u0 << 0.0, 0.0;
+
+      // Parameters
+      const double R = 31.83;        // turning radius (~1/0.0314)
+      const double v_target = 10.0;  // 36 km/h
+      const double t_start_turn = 3.0;
+      const double t_end_turn = 8.0;
+      const double kappa_turn = 1.0 / R;
+
+      // Compute straight segment length at start of turn
+      double L = 0.0;
+      if (t_start_turn <= 2.0) {
+        L = v_target * t_start_turn;  // still accelerating
+      } else {
+        L = v_target * 2.0
+            + v_target * (t_start_turn - 2.0);  // accelerate for 2s, then constant speed
+      }
+      // Final state must match the end of the reference trajectory!
+      xf << L + R, -R, -M_PI_2, 0.0, v_target, 0.0;
+
+      // Build reference trajectory: piecewise (straight -> arc -> straight)
+      traj.resize(N + 1);
+
+      for (int k = 0; k <= N; ++k) {
+        double t = tf * static_cast<double>(k) / N;  // t in [0, tf]
+
+        Eigen::Vector4d ref;  // [x_ref, y_ref, theta_ref, v_ref]
+
+        if (t < t_start_turn) {
+          // Before turn: straight along x-axis
+          double s = (t <= 2.0) ? v_target * t : v_target * 2.0 + v_target * (t - 2.0);
+          ref << s, 0.0, 0.0, v_target;
+
+        } else if (t <= t_end_turn) {
+          // During turn: circular arc, center at (L, R)
+          double dt = t - t_start_turn;
+          double phi = kappa_turn * v_target * dt;  // positive angle swept
+
+          double x_arc = L + R * std::sin(phi);
+          double y_arc = -R * (1.0 - std::cos(phi));  // = R*(cos(phi) - 1), negative
+          double theta_ref = -phi;                    // heading turns clockwise
+
+          ref << x_arc, y_arc, theta_ref, v_target;
+
+        } else {
+          // After turn: straight along -y direction
+          double dt_after = t - t_end_turn;
+          double x_final = L + R;
+          double y_final = -R - v_target * dt_after;
+          ref << x_final, y_final, -M_PI_2, v_target;
+        }
+
+        traj[k] = ref;
+      }
+
+      ref_line_ = std::make_shared<altro::examples::ReferenceLine>(std::move(traj));
+      projector_ = std::make_shared<altro::examples::ReferenceLineProjector>(ref_line_);
       break;
+    }
     case kUturn:
       break;
     case kGtest:
@@ -182,6 +245,7 @@ altro::problem::Problem CarExtendedProblem::MakeProblem(bool add_constraints) {
       prob.SetConstraint(
           std::make_shared<altro::examples::HeadingTrackingConstraint>(projector_, heading_offset_max), k);
     }
+    // prob.SetConstraint(std::make_shared<examples::GoalConstraint>(xf), N);
 
     // Terminal state constraint (soft via cost, or hard if desired)
     // prob.SetConstraint(

@@ -23,6 +23,10 @@ public:
         const Eigen::Vector2d& vehicle_pos,
         int prev_index_hint = 0) const;
 
+    const std::vector<Eigen::Vector4d>& GetTrajectory() const {
+        return trajectory_;
+    }
+
 private:
     std::vector<Eigen::Vector4d> trajectory_;  // 离散点序列
 };

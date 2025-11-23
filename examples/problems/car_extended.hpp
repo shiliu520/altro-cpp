@@ -51,7 +51,7 @@ class CarExtendedProblem {
   double w_target_speed = 1.0;
   double w_lateral = 1.0;
   double w_centric_acc = 1.0;
-  double w_terminal_state = 0.0;
+  double w_terminal_state = 1.0;
 
   // State constraints parameters
   double a_min = -5.0;
@@ -87,6 +87,10 @@ class CarExtendedProblem {
   float GetTimeStep() const { return static_cast<float>(tf) / N; }
 
   altro::problem::Problem MakeProblem(bool add_constraints = true);
+
+  std::shared_ptr<const altro::examples::ReferenceLine> GetReferenceLine() const {
+    return std::const_pointer_cast<const altro::examples::ReferenceLine>(ref_line_);
+}
 
   template <int n_size = NStates, int m_size = NControls>
   TrajType InitialTrajectory();

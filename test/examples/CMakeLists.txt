@@ -37,9 +37,13 @@ gtest_discover_tests(example_truck_test)
 add_executable(example_car_test
   example_car_test.cpp
 )
+target_compile_definitions(example_car_test PRIVATE
+    ALTRO_PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 target_link_libraries(example_car_test
   PRIVATE
   gtest_main
   example_problems
+  Python3::Python
+  Python3::NumPy
 )
 gtest_discover_tests(example_car_test)

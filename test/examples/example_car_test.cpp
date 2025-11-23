@@ -1,8 +1,262 @@
-#include <gtest/gtest.h>
-#include "examples/problems/car_extended.hpp" // 如果 ALTRO 提供了 FD 工具；否则我们自己写
+#include <gtest/gtest.h> // 如果 ALTRO 提供了 FD 工具；否则我们自己写
 
 #include <Eigen/Dense>
 #include <cmath>
+#include <libgen.h>
+#include <filesystem>
+#include "examples/problems/car_extended.hpp"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#include "test/third_party/matplotlibcpp/matplotlibcpp.h"
+#pragma GCC diagnostic pop
+
+
+namespace plt = matplotlibcpp;
+namespace fs = std::filesystem;
+
+void SaveTrajectoryPlots(const double tf, const std::vector<Eigen::Vector4d>& traj,
+                         const std::string& scenario_name) {
+  // Assume running from build/ directory => current_path() = .../altro-cpp/build
+  std::string project_source_dir = ALTRO_PROJECT_SOURCE_DIR;
+  fs::path target_dir = fs::path(project_source_dir) / "Testing" / "Temporary" / "car" / scenario_name;
+
+  fs::create_directories(target_dir);
+  std::string prefix = target_dir.string() + "/" + scenario_name + "_ref_";
+
+  // ... rest of your code unchanged ...
+  const int N = static_cast<int>(traj.size()) - 1;
+  std::vector<double> time(N + 1);
+  for (int k = 0; k <= N; ++k) {
+    time[k] = tf * static_cast<double>(k) / N;
+  }
+
+  // Plot 1: x-y
+  {
+    std::vector<double> x(N + 1), y(N + 1);
+    for (int k = 0; k <= N; ++k) {
+      x[k] = traj[k](0);
+      y[k] = traj[k](1);
+    }
+    plt::figure_size(800, 600);
+    plt::plot(x, y, "b-o");
+    plt::title("Reference Path (x vs y)");
+    plt::xlabel("x [m]");
+    plt::ylabel("y [m]");
+    plt::grid(true);
+    plt::save(prefix + "x_y.png");
+    //
+  }
+
+  // Plot 2: theta, v
+  {
+    std::vector<double> theta(N + 1), v(N + 1);
+    for (int k = 0; k <= N; ++k) {
+      theta[k] = traj[k](2);
+      v[k] = traj[k](3);
+    }
+
+    // === Plot 2a: theta vs time (separate figure) ===
+    {
+      std::vector<double> theta(N + 1);
+      for (int k = 0; k <= N; ++k) {
+        theta[k] = traj[k](2);
+      }
+      plt::figure();
+      plt::plot(time, theta, "r-");
+      plt::title("Heading $\\theta$ over Time");
+      plt::xlabel("Time [s]");
+      plt::ylabel("rad");
+      plt::grid(true);
+      plt::save(prefix + "theta.png");
+      plt::close();
+    }
+
+    // === Plot 2b: speed vs time (separate figure) ===
+    {
+      std::vector<double> v(N + 1);
+      for (int k = 0; k <= N; ++k) {
+        v[k] = traj[k](3);
+      }
+      plt::figure();
+      plt::plot(time, v, "b-");
+      plt::title("Speed $v$ over Time");
+      plt::xlabel("Time [s]");
+      plt::ylabel("m/s");
+      plt::grid(true);
+      plt::save(prefix + "speed.png");
+      plt::close();
+    }
+    //
+  }
+}
+
+void SaveOptimizedVsReferencePlots(
+    const double tf,
+    const std::vector<Eigen::Vector4d>& ref_traj,
+    const std::vector<Eigen::VectorXd>& x_opt,
+    const std::vector<Eigen::VectorXd>& u_opt,
+    const std::string& scenario_name) {
+
+//   fs::path project_root = fs::current_path().parent_path();
+  std::string project_source_dir = ALTRO_PROJECT_SOURCE_DIR;
+  fs::path target_dir = fs::path(project_source_dir) / "Testing" / "Temporary" / "car" / scenario_name;
+
+  fs::create_directories(target_dir);
+  std::string prefix = target_dir.string() + "/" + scenario_name + "_";
+  std::cout << "Saving plots to directory: " << target_dir << std::endl;
+//   std::cout << "Total steps in x_opt: " << x_opt.size() << std::endl;
+
+    const int N = static_cast<int>(x_opt.size()) - 1;
+    std::vector<double> t_state(N + 1);
+    for (int k = 0; k <= N; ++k) {
+        t_state[k] = tf * static_cast<double>(k) / N;
+    }
+
+    std::vector<double> t_control(N);
+    for (int k = 0; k < N; ++k) {
+        t_control[k] = tf * static_cast<double>(k) / N;
+    }
+
+    // --- 1. XY Plot ---
+    {
+        std::vector<double> x_ref(ref_traj.size()), y_ref(ref_traj.size());
+        for (size_t i = 0; i < ref_traj.size(); ++i) {
+            x_ref[i] = ref_traj[i](0);
+            y_ref[i] = ref_traj[i](1);
+        }
+
+        std::vector<double> x_opt_vec(x_opt.size()), y_opt_vec(x_opt.size());
+        for (size_t i = 0; i < x_opt.size(); ++i) {
+            x_opt_vec[i] = x_opt[i](0);
+            y_opt_vec[i] = x_opt[i](1);
+        }
+
+        plt::figure();
+        plt::plot(x_ref, y_ref, {{"color", "blue"}, {"linestyle", "-"}, {"label", "pos_ref"}});
+        plt::plot(x_opt_vec, y_opt_vec, {{"color", "red"}, {"linestyle", "--"}, {"label", "pos_opt"}});
+        plt::xlabel("x [m]");
+        plt::ylabel("y [m]");
+        plt::legend();
+        plt::title("XY Trajectory");
+        plt::grid(true);
+        plt::save(prefix + "x_y.png");
+    }
+
+    // --- 2. Theta vs time ---
+    {
+        std::vector<double> theta_ref(ref_traj.size());
+        for (size_t i = 0; i < ref_traj.size(); ++i) {
+            theta_ref[i] = ref_traj[i](2);
+        }
+
+        std::vector<double> theta_opt(x_opt.size());
+        for (size_t i = 0; i < x_opt.size(); ++i) {
+            theta_opt[i] = x_opt[i](2);
+        }
+
+        plt::figure();
+        plt::plot(t_state, theta_ref, {{"color", "blue"}, {"linestyle", "-"}, {"label", "theta_ref"}});
+        plt::plot(t_state, theta_opt, {{"color", "red"}, {"linestyle", "--"}, {"label", "theta_opt"}});
+        plt::xlabel("Time [s]");
+        plt::ylabel("Heading θ [rad]");
+        plt::legend();
+        plt::title("Heading vs Time");
+        plt::grid(true);
+        plt::save(prefix + "theta_t.png");
+    }
+
+    // --- 3. Velocity vs time ---
+    {
+        std::vector<double> v_ref(ref_traj.size());
+        for (size_t i = 0; i < ref_traj.size(); ++i) {
+            v_ref[i] = ref_traj[i](3);
+        }
+
+        std::vector<double> v_opt(x_opt.size());
+        for (size_t i = 0; i < x_opt.size(); ++i) {
+            v_opt[i] = x_opt[i](4);
+        }
+
+        plt::figure();
+        plt::plot(t_state, v_ref, {{"color", "blue"}, {"linestyle", "-"}, {"label", "vel_ref"}});
+        plt::plot(t_state, v_opt, {{"color", "red"}, {"linestyle", "--"}, {"label", "vel_opt"}});
+        plt::xlabel("Time [s]");
+        plt::ylabel("Speed v [m/s]");
+        plt::legend();
+        plt::title("Speed vs Time");
+        plt::grid(true);
+        plt::save(prefix + "vel_t.png");
+    }
+
+    // --- 4. kappa(t) ---
+    {
+        std::vector<double> kappa_opt(x_opt.size());
+        for (size_t i = 0; i < x_opt.size(); ++i) {
+            kappa_opt[i] = x_opt[i](3);
+        }
+
+        plt::figure();
+        plt::plot(t_state, kappa_opt, {{"color", "black"}, {"linestyle", "-"}, {"label", "kappa_opt"}});
+        plt::xlabel("Time [s]");
+        plt::ylabel("Curvature κ [1/m]");
+        plt::legend();
+        plt::title("Curvature vs Time");
+        plt::grid(true);
+        plt::save(prefix + "kappa_t.png");
+    }
+
+    // --- 5. acceleration a(t) ---
+    {
+        std::vector<double> a_opt(x_opt.size());
+        for (size_t i = 0; i < x_opt.size(); ++i) {
+            a_opt[i] = x_opt[i](5);
+        }
+
+        plt::figure();
+        plt::plot(t_state, a_opt, {{"color", "black"}, {"linestyle", "-"}, {"label", "a_opt"}});
+        plt::xlabel("Time [s]");
+        plt::ylabel("Acceleration a [m/s²]");
+        plt::legend();
+        plt::title("Acceleration vs Time");
+        plt::grid(true);
+        plt::save(prefix + "a_t.png");
+    }
+
+    // --- 6. kappa_dot (u[0]) ---
+    {
+        std::vector<double> kappa_dot(u_opt.size());
+        for (size_t i = 0; i < u_opt.size(); ++i) {
+            kappa_dot[i] = u_opt[i](0);
+        }
+
+        plt::figure();
+        plt::plot(t_control, kappa_dot, {{"color", "black"}, {"linestyle", "-"}, {"label", "kappa_dot"}});
+        plt::xlabel("Time [s]");
+        plt::ylabel("Curvature rate dκ/dt [1/(m·s)]");
+        plt::legend();
+        plt::title("Curvature Rate vs Time");
+        plt::grid(true);
+        plt::save(prefix + "kappa_dot_t.png");
+    }
+
+    // --- 7. jerk (u[1]) ---
+    {
+        std::vector<double> jerk(u_opt.size());
+        for (size_t i = 0; i < u_opt.size(); ++i) {
+            jerk[i] = u_opt[i](1);
+        }
+
+        plt::figure();
+        plt::plot(t_control, jerk, {{"color", "black"}, {"linestyle", "-"}, {"label", "jerk"}});
+        plt::xlabel("Time [s]");
+        plt::ylabel("Jerk [m/s³]");
+        plt::legend();
+        plt::title("Jerk vs Time");
+        plt::grid(true);
+        plt::save(prefix + "jerk_t.png");
+    }
+}
 
 namespace {
 
@@ -301,6 +555,38 @@ TEST(CarExtendedProblemTest, CostGradientsAndHessiansAreCorrect) {
     }
 }
 
+TEST(CarExtendedProblemTest, QuarterTurn) {
+  setenv("MPLBACKEND", "Agg", 1);
+  CarExtendedProblem prob;
+  prob.SetScenario(CarExtendedProblem::kQuarterTurn);
+  //   SaveTrajectoryPlots(prob.tf, prob.GetReferenceLine()->GetTrajectory(), "QuarterTurn");
+  auto solver_al = prob.MakeALSolver();
+  auto traj = *(solver_al.GetiLQRSolver().GetTrajectory());
+
+  //   double solver_cost = solver_al.GetiLQRSolver().Cost();
+  //   double expected_cost = ComputeExpectedTotalCost(prob, traj);
+
+  solver_al.GetOptions().verbose = altro::LogLevel::kSilent;  // KkDebug
+  solver_al.Solve();
+  EXPECT_EQ(solver_al.GetStatus(), altro::SolverStatus::kSolved);
+  EXPECT_LT(solver_al.MaxViolation(), solver_al.GetOptions().constraint_tolerance);
+  EXPECT_LT(solver_al.GetStats().cost_decrease.back(), solver_al.GetOptions().cost_tolerance);
+  EXPECT_LT(solver_al.GetStats().gradient.back(), solver_al.GetOptions().gradient_tolerance);
+
+  // Extract optimized trajectory as vectors
+  auto traj_opt = solver_al.GetiLQRSolver().GetTrajectory();
+  std::vector<Eigen::VectorXd> x_opt(prob.N + 1);
+  std::vector<Eigen::VectorXd> u_opt(prob.N);  // N control steps
+  for (int k = 0; k <= prob.N; ++k) {
+    x_opt[k] = traj_opt->State(k);
+    if (k < prob.N) {
+      u_opt[k] = traj_opt->Control(k);
+    }
+  }
+
+  SaveOptimizedVsReferencePlots(prob.tf, prob.GetReferenceLine()->GetTrajectory(), x_opt, u_opt,
+                                "QuarterTurn");
+}
 }
 
 } // namespace
