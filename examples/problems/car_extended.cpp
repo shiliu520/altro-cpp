@@ -29,9 +29,9 @@ void CarExtendedProblem::SetScenario(Scenario scenario) {
     case kGtest:
       N = 100;
       tf = 10.0;
-      x0 << 0, 0, 0, 0, 0.0, 0;   // [x, y, θ, κ, v, a]
+      x0 << 0, 0, 0, 0, 0.1, 0;   // [x, y, θ, κ, v, a], v(0) = 0.1 to avoid zero initial speed, which can generate constraint derivative
       xf << 20, 1, 0, 0, 10.0, 0;
-      u0 << 0.05, 0.1;
+      u0 << 0.0, 0.1;             // u0(0) > 0 can cause kappa to increase, even violate constraints, which can generate constraint cost
 
       traj.resize(N+1);
       for (int k = 0; k <= N; ++k) {
@@ -166,11 +166,21 @@ altro::problem::Problem CarExtendedProblem::MakeProblem(bool add_constraints) {
   // === Constraints ===
   if (add_constraints) {
     // Control bounds: [v_dot_min, jerk_min] to [v_dot_max, jerk_max]
-    std::vector<double> lb = {-3.0, -5.0};
-    std::vector<double> ub = {+3.0, +5.0};
+    std::vector<double> lb_control = {kappa_dot_min, jerk_min};
+    std::vector<double> ub_control = {kappa_dot_max, jerk_max};
+    std::vector<double> lb_state = {-ALTRO_INFINITY, -ALTRO_INFINITY, -ALTRO_INFINITY, kappa_min, v_min, a_min};
+    std::vector<double> ub_state = {ALTRO_INFINITY, ALTRO_INFINITY, ALTRO_INFINITY, kappa_max, v_max, a_max};
     for (int k = 0; k < N; ++k) {
       prob.SetConstraint(
-          std::make_shared<altro::examples::ControlBound>(lb, ub), k);
+          std::make_shared<altro::examples::ControlBound>(lb_control, ub_control), k);
+      prob.SetConstraint(
+          std::make_shared<altro::examples::StateBound>(lb_state, ub_state), k);
+      prob.SetConstraint(
+          std::make_shared<altro::examples::CentripetalAccelerationConstraint>(centric_acc_max), k);
+      prob.SetConstraint(
+          std::make_shared<altro::examples::CentripetalJerkConstraint>(centric_jerk_max), k);
+      prob.SetConstraint(
+          std::make_shared<altro::examples::HeadingTrackingConstraint>(projector_, heading_offset_max), k);
     }
 
     // Terminal state constraint (soft via cost, or hard if desired)

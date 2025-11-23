@@ -11,7 +11,7 @@
  * 
  */
 #define ALTRO_UNUSED(var) (void) (var)
-
+#define ALTRO_INFINITY std::numeric_limits<double>::infinity()
 
 inline double NormalizeAngle(double angle) {
     double a = std::fmod(angle + M_PI, 2.0 * M_PI);

@@ -53,6 +53,23 @@ class CarExtendedProblem {
   double w_centric_acc = 1.0;
   double w_terminal_state = 0.0;
 
+  // State constraints parameters
+  double a_min = -5.0;
+  double a_max = 2.0;
+  double v_min = 0.0;
+  double v_max = 40;  // m/s 144km/h
+  double kappa_min = -0.25;
+  double kappa_max = 0.25;
+  double centric_acc_max = 7.0;
+  double centric_jerk_max = 100;
+  double heading_offset_max = M_PI / 3.0;  // 60 degrees
+
+  // Control constraints parameters
+  double kappa_dot_min = -0.6;   // 1/(m·s)
+  double kappa_dot_max =  0.6;
+  double jerk_min = -5.0;   // m/s³
+  double jerk_max =  5.0;
+
   // Huber delta parameters
   double delta_speed = 1.0;      // for speed tracking
   double delta_lateral = 0.5;    // for lateral distance

@@ -176,6 +176,13 @@ static double ComputeExpectedTotalCost(const altro::problems::CarExtendedProblem
         total_cost += 0.5 * dx.transpose() * Qf * dx;
     }
 
+    // Todo: Add AL penalty for each constraint
+    // for (auto& con : prob.GetInequalityConstraints()) {
+    //     VectorXd c = con->Evaluate(x, u);
+    //     double rho = con->GetPenalty();
+    //     total_cost += 0.5 * rho * (con->Projection(c + lambda/rho).squaredNorm());
+    // }
+
     return total_cost;
 }
 
