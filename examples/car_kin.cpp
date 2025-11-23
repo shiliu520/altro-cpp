@@ -37,8 +37,9 @@ void CarKinematic::Jacobian(const VectorXdRef& x, const VectorXdRef& u, const fl
   jac(2, 3) = std::tan(steer) / wheelbase_;
 
   // ∂xdot/∂u
-  jac(2, 0) = v / (wheelbase_ * std::pow(std::cos(steer), 2));  // ∂xdot2/∂u0
-  jac(3, 1) = 1.0;                                              // ∂xdot3/∂u1
+  const int nx = x.size();
+  jac(2, nx + 0) = v / (wheelbase_ * std::pow(std::cos(steer), 2));  // ∂xdot2/∂u0
+  jac(3, nx + 1) = 1.0;                                              // ∂xdot3/∂u1
 }
 
 void CarKinematic::Hessian(const VectorXdRef& x, const VectorXdRef& u, const float t,
@@ -112,8 +113,9 @@ void CarExtended::Jacobian(const VectorXdRef& x, const VectorXdRef& u, const flo
   jac(4, 5) = 1; // v_dot = a, so dv_dot/da = 1
 
   // ∂xdot/∂u
-  jac(3, 0) = 1; // curvature rate control
-  jac(5, 1) = 1; // longitudinal jerk control
+  const int nx = x.size();
+  jac(3, nx + 0) = 1; // curvature rate control
+  jac(5, nx + 1) = 1; // longitudinal jerk control
 }
 
 void CarExtended::Hessian(const VectorXdRef& x, const VectorXdRef& u, const float t,
