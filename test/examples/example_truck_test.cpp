@@ -22,7 +22,13 @@ namespace fs = std::filesystem;
 std::string get_current_file_dir() {
     char current_file[PATH_MAX] = {0};
     // 1. 解析 __FILE__ 为绝对路径（处理相对路径、符号链接）
-    realpath(__FILE__, current_file);
+    if (realpath(__FILE__, current_file) == NULL) {
+        // 如果失败，打印错误信息并终止程序
+        std::cerr << "Error: Failed to resolve path for file '" << __FILE__
+                  << "'. Reason: " << strerror(errno) << std::endl;
+        exit(EXIT_FAILURE); // 或者根据你的需求抛出异常
+    }
+
     // 2. 提取目录部分（dirname 会修改原字符串，所以用临时变量）
     char* dir = dirname(current_file);
     // 3. 转为 C++ string 返回
