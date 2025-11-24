@@ -30,6 +30,27 @@ enum class SolverStatus {
   kBackwardPassRegularizationFailed = 9,
 };
 
+const std::vector<std::string> kSolverStatusStrings = {
+    "kSolved",
+    "kUnsolved",
+    "kStateLimit",
+    "kControlLimit",
+    "kCostIncrease",
+    "kMaxIterations",
+    "kMaxOuterIterations",
+    "kMaxInnerIterations",
+    "kMaxPenalty",
+    "kBackwardPassRegularizationFailed"
+};
+
+inline std::string SolverStatusToString(SolverStatus status) {
+  auto idx = static_cast<size_t>(status);
+  if (idx < kSolverStatusStrings.size()) {
+    return kSolverStatusStrings[idx];
+  }
+  return "Unknown SolverStatus(" + std::to_string(static_cast<int>(status)) + ")";
+}
+
 /**
  * @brief Holds statistics recorded during the solve
  * 
