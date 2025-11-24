@@ -44,14 +44,17 @@ class CarExtendedProblem {
 
   CarExtendedProblem();
 
-  // Weights for each cost term (default = 1.0)
-  double w_curv_rate = 1.0;     // u0 = κ̇
-  double w_jerk = 1.0;          // u1 = jerk
-  double w_centripetal_jerk = 1.0;
-  double w_target_speed = 1.0;
-  double w_lateral = 1.0;
-  double w_centric_acc = 1.0;
-  double w_terminal_state = 1.0;
+  // ==============================
+  // 1. Original weight intent (designer’s subjective importance)
+  // ==============================
+  double w_curv_rate_orin     = 1.0;   // curvature change rate
+  double w_jerk_orin          = 1.0;   // longitudinal jerk
+  double w_centripetal_jerk_orin = 1.0;
+  double w_target_speed_orin  = 1.0;   // speed tracking
+  double w_lateral_orin       = 1.0;   // lateral offset
+  double w_centric_acc_orin   = 1.0;   // centripetal acceleration
+  double w_terminal_state_orin = 1.0;  // terminal accuracy
+  const double C = 5.0;                // cost value according to max cost term
 
   // State constraints parameters
   double a_min = -5.0;
@@ -73,6 +76,20 @@ class CarExtendedProblem {
   // Huber delta parameters
   double delta_speed = 1.0;      // for speed tracking
   double delta_lateral = 0.5;    // for lateral distance
+
+  double terminal_pos_tol   = 0.1;       // m
+  double terminal_yaw_tol   = M_PI / 36.0; // 5 degrees ≈ 0.087 rad
+
+  // Weights for each cost term (default = 1.0)
+  double w_curv_rate = w_curv_rate_orin * C / (kappa_dot_max * kappa_dot_max);     // u0 = κ̇
+  double w_jerk = w_jerk_orin * C / (jerk_max * jerk_max);                         // u1 = jerk
+  double w_centripetal_jerk = w_centripetal_jerk_orin * C / (centric_jerk_max * centric_jerk_max);
+  double w_target_speed = w_target_speed_orin * C / (delta_speed * delta_speed);
+  double w_lateral = w_lateral_orin * C / (delta_lateral * delta_lateral);
+  double w_centric_acc = w_centric_acc_orin * C / (centric_acc_max * centric_acc_max);
+  double w_terminal_pos = w_terminal_state_orin * C / (terminal_pos_tol * terminal_pos_tol);
+  double w_terminal_yaw = w_terminal_state_orin * C / (terminal_yaw_tol * terminal_yaw_tol);
+  double w_terminal_state = w_terminal_pos;
 
   // Problem parameters
   int N = 100;
