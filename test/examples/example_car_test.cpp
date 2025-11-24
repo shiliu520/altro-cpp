@@ -91,6 +91,17 @@ void SaveTrajectoryPlots(const double tf, const std::vector<Eigen::Vector4d>& tr
   }
 }
 
+std::vector<double> ComputeArcLengthFromXY(
+    const std::vector<std::pair<double, double>>& points) {
+    std::vector<double> s(points.size(), 0.0);
+    for (size_t i = 1; i < points.size(); ++i) {
+        double dx = points[i].first  - points[i-1].first;
+        double dy = points[i].second - points[i-1].second;
+        s[i] = s[i-1] + std::sqrt(dx*dx + dy*dy);
+    }
+    return s;
+}
+
 void SaveOptimizedVsReferencePlots(
     const double tf,
     const std::vector<Eigen::Vector4d>& ref_traj,
@@ -145,19 +156,32 @@ void SaveOptimizedVsReferencePlots(
 
     // --- 2. Theta vs time ---
     {
+        // --- Reference trajectory: convert to (x,y) pairs ---
+        std::vector<std::pair<double, double>> ref_points;
+        ref_points.reserve(ref_traj.size());
+        for (const auto& p : ref_traj) {
+            ref_points.emplace_back(p(0), p(1)); // x, y
+        }
+        std::vector<double> s_ref = ComputeArcLengthFromXY(ref_points);
         std::vector<double> theta_ref(ref_traj.size());
         for (size_t i = 0; i < ref_traj.size(); ++i) {
             theta_ref[i] = ref_traj[i](2);
         }
 
+        std::vector<std::pair<double, double>> opt_points;
+        opt_points.reserve(x_opt.size());
+        for (const auto& x : x_opt) {
+            opt_points.emplace_back(x(0), x(1));
+        }
+        std::vector<double> s_opt = ComputeArcLengthFromXY(opt_points);
         std::vector<double> theta_opt(x_opt.size());
         for (size_t i = 0; i < x_opt.size(); ++i) {
             theta_opt[i] = x_opt[i](2);
         }
 
         plt::figure();
-        plt::plot(t_state, theta_ref, {{"color", "blue"}, {"linestyle", "-"}, {"label", "theta_ref"}});
-        plt::plot(t_state, theta_opt, {{"color", "red"}, {"linestyle", "--"}, {"label", "theta_opt"}});
+        plt::plot(s_ref, theta_ref, {{"color", "blue"}, {"linestyle", "-"}, {"label", "theta_ref"}});
+        plt::plot(s_opt, theta_opt, {{"color", "red"}, {"linestyle", "--"}, {"label", "theta_opt"}});
         plt::xlabel("Time [s]");
         plt::ylabel("Heading θ [rad]");
         plt::legend();
@@ -566,8 +590,13 @@ TEST(CarExtendedProblemTest, QuarterTurn) {
   //   double solver_cost = solver_al.GetiLQRSolver().Cost();
   //   double expected_cost = ComputeExpectedTotalCost(prob, traj);
 
-  solver_al.GetOptions().verbose = altro::LogLevel::kSilent;  // KkDebug
+  solver_al.GetOptions().verbose = altro::LogLevel::kSilent;  // kDebug
+  // solver_al.GetOptions().max_iterations_outer = 30;
+  solver_al.GetOptions().max_iterations_inner = 150;
   solver_al.Solve();
+
+  std::cout << "Solver status: " << altro::SolverStatusToString(solver_al.GetStatus()) << std::endl;
+
   EXPECT_EQ(solver_al.GetStatus(), altro::SolverStatus::kSolved);
   EXPECT_LT(solver_al.MaxViolation(), solver_al.GetOptions().constraint_tolerance);
   EXPECT_LT(solver_al.GetStats().cost_decrease.back(), solver_al.GetOptions().cost_tolerance);
@@ -584,8 +613,8 @@ TEST(CarExtendedProblemTest, QuarterTurn) {
     }
   }
 
-  SaveOptimizedVsReferencePlots(prob.tf, prob.GetReferenceLine()->GetTrajectory(), x_opt, u_opt,
-                                "QuarterTurn");
+//   SaveOptimizedVsReferencePlots(prob.tf, prob.GetReferenceLine()->GetTrajectory(), x_opt, u_opt,
+//                                 "QuarterTurn");
 }
 }
 
