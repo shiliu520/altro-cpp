@@ -13,6 +13,7 @@ public:
         Eigen::Vector2d pos;      // (x_ref, y_ref)
         double theta;             // path tangent angle
         double vel;               // desired speed
+        double d;                 // signed lateral distance:
         int next_index_hint;      // for warm-starting
     };
 

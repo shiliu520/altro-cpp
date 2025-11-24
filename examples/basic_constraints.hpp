@@ -11,6 +11,7 @@
 #include "altro/eigentypes.hpp"
 #include "altro/utils/utils.hpp"
 #include "examples/reference_line.hpp"
+#include "examples/car_kin.hpp"
 
 namespace altro {
 namespace examples {
@@ -471,6 +472,146 @@ class HeadingTrackingConstraint : public constraints::Constraint<constraints::Ne
  private:
   std::shared_ptr<ReferenceLineProjector> projector_;
   double theta_max_;
+};
+
+class PathBoundConstraint : public constraints::Constraint<constraints::NegativeOrthant> {
+public:
+    PathBoundConstraint(
+        std::shared_ptr<const ReferenceLine> left_boundary,
+        std::shared_ptr<const ReferenceLine> right_boundary,
+        const CarExtended& vehicle_model,
+        const double left_tolerance = 0.0,
+        const double right_tolerance = 0.0)
+        : left_boundary_(std::move(left_boundary)),
+          right_boundary_(std::move(right_boundary)),
+          vehicle_model_(vehicle_model),
+          left_tol_(left_tolerance),
+          right_tol_(right_tolerance) {
+
+        if (!left_boundary_ || !right_boundary_) {
+            throw std::invalid_argument("Boundary reference lines must not be null.");
+        }
+
+        // Precompute vehicle geometry in local frame (rear axle center origin)
+        double front_overhang = vehicle_model_.length() - vehicle_model_.wheelbase() - vehicle_model_.rear_overhang();
+        Lf_ = vehicle_model_.wheelbase() + front_overhang;  // distance from rear axle to front bumper
+        Lr_ = vehicle_model_.rear_overhang();               // distance from rear axle to rear bumper (positive)
+        half_width_ = vehicle_model_.width() * 0.5;
+    }
+
+    std::string GetLabel() const override { return "Path Bound Constraint"; }
+
+    int StateDimension() const override { return 6; }
+    int ControlDimension() const override { return 0; }
+    int OutputDimension() const override { return 4; } // [FR, RR, FL, RL]
+
+    void Evaluate(const VectorXdRef& x, const VectorXdRef& u,
+                                       Eigen::Ref<VectorXd> c) {
+      ALTRO_UNUSED(u);
+
+      double x_l = x(0);
+      double y_l = x(1);
+      double theta_l = x(2);
+
+      Eigen::Vector2d center(x_l, y_l);
+      Eigen::Rotation2Dd R(theta_l);
+
+      // Dynamic corner positions in local frame
+      Eigen::Vector2d fr_local = center + R * Eigen::Vector2d(Lf_, -half_width_);
+      Eigen::Vector2d rr_local = center + R * Eigen::Vector2d(-Lr_, -half_width_);
+      Eigen::Vector2d fl_local = center + R * Eigen::Vector2d(Lf_, +half_width_);
+      Eigen::Vector2d rl_local = center + R * Eigen::Vector2d(-Lr_, +half_width_);
+
+      auto proj_fr = right_boundary_->Project(fr_local);
+      auto proj_rr = right_boundary_->Project(rr_local);
+      auto proj_fl = left_boundary_->Project(fl_local);
+      auto proj_rl = left_boundary_->Project(rl_local);
+
+      c(0) = -(proj_fr.d + right_tol_);
+      c(1) = -(proj_rr.d + right_tol_);
+      c(2) = proj_fl.d - left_tol_;
+      c(3) = proj_rl.d - left_tol_;
+    }
+
+    void Jacobian(const VectorXdRef& x, const VectorXdRef& u, Eigen::Ref<MatrixXd> jac) override {
+        ALTRO_UNUSED(u);
+        jac.setZero();
+
+        double x_l = x(0);
+        double y_l = x(1);
+        double theta_l = x(2);
+        double cos_t = std::cos(theta_l);
+        double sin_t = std::sin(theta_l);
+
+        // Body-frame corners
+        Eigen::Vector2d fr_b(Lf_, -half_width_);
+        Eigen::Vector2d rr_b(-Lr_, -half_width_);
+        Eigen::Vector2d fl_b(Lf_, +half_width_);
+        Eigen::Vector2d rl_b(-Lr_, +half_width_);
+
+        // Reconstruct local positions
+        Eigen::Vector2d center(x_l, y_l);
+        Eigen::Vector2d fr_local = center + Eigen::Rotation2Dd(theta_l) * fr_b;
+        Eigen::Vector2d rr_local = center + Eigen::Rotation2Dd(theta_l) * rr_b;
+        Eigen::Vector2d fl_local = center + Eigen::Rotation2Dd(theta_l) * fl_b;
+        Eigen::Vector2d rl_local = center + Eigen::Rotation2Dd(theta_l) * rl_b;
+
+        // Project to get .theta (needed for normal direction in gradient)
+        auto proj_fr = right_boundary_->Project(fr_local);
+        auto proj_rr = right_boundary_->Project(rr_local);
+        auto proj_fl = left_boundary_->Project(fl_local);
+        auto proj_rl = left_boundary_->Project(rl_local);
+
+        // Get left normals from theta (for gradient direction)
+        auto get_left_normal = [](double theta) -> Eigen::Vector2d {
+            return Eigen::Vector2d(-std::sin(theta), std::cos(theta));
+        };
+
+        Eigen::Vector2d n_fr = get_left_normal(proj_fr.theta);
+        Eigen::Vector2d n_rr = get_left_normal(proj_rr.theta);
+        Eigen::Vector2d n_fl = get_left_normal(proj_fl.theta);
+        Eigen::Vector2d n_rl = get_left_normal(proj_rl.theta);
+
+        // Derivative of rotated point w.r.t. theta
+        auto d_rot_wrt_theta = [&](const Eigen::Vector2d& p) -> Eigen::Vector2d {
+            return Eigen::Vector2d(
+                -sin_t * p.x() - cos_t * p.y(),
+                 cos_t * p.x() - sin_t * p.y()
+            );
+        };
+
+        // --- Right boundary constraints: c = -(d + tol) → ∂c/∂x = -∂d/∂x ---
+        jac(0, 0) = -n_fr.x();  // ∂/∂x_l
+        jac(0, 1) = -n_fr.y();  // ∂/∂y_l
+        jac(0, 2) = -d_rot_wrt_theta(fr_b).dot(n_fr);
+
+        jac(1, 0) = -n_rr.x();
+        jac(1, 1) = -n_rr.y();
+        jac(1, 2) = -d_rot_wrt_theta(rr_b).dot(n_rr);
+
+        // --- Left boundary constraints: c = d - tol → ∂c/∂x = +∂d/∂x ---
+        jac(2, 0) = n_fl.x();
+        jac(2, 1) = n_fl.y();
+        jac(2, 2) = d_rot_wrt_theta(fl_b).dot(n_fl);
+
+        jac(3, 0) = n_rl.x();
+        jac(3, 1) = n_rl.y();
+        jac(3, 2) = d_rot_wrt_theta(rl_b).dot(n_rl);
+
+        // State dimensions 3~5 (kappa, v, a) have zero gradient — already zero by setZero()
+    }
+
+private:
+    std::shared_ptr<const ReferenceLine> left_boundary_;
+    std::shared_ptr<const ReferenceLine> right_boundary_;
+    altro::examples::CarExtended vehicle_model_;
+    double left_tol_;
+    double right_tol_;
+
+    // Cached geometry for efficiency
+    double Lf_ = 0.0;        // front overhang from rear axle
+    double Lr_ = 0.0;        // rear overhang (positive)
+    double half_width_ = 0.0;
 };
 
 }  // namespace examples

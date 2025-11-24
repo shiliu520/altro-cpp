@@ -23,6 +23,7 @@ ReferenceLine::ProjectionResult ReferenceLine::Project(
             p.head<2>(),
             p(2),
             p(3),
+            0,
             0
         };
     }
@@ -96,10 +97,15 @@ ReferenceLine::ProjectionResult ReferenceLine::Project(
         }
     }
 
+    Eigen::Vector2d vec_to_vehicle = vehicle_pos - best_proj_point;
+    Eigen::Vector2d left_normal(-std::sin(best_theta), std::cos(best_theta)); // 左手法向量
+    double d = vec_to_vehicle.dot(left_normal);
+
     return ProjectionResult{
         best_proj_point,
         best_theta,
         best_vel,
+        d,
         best_seg_start  // 下次从该线段开始搜索
     };
 }

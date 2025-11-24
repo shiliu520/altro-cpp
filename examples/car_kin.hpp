@@ -120,7 +120,10 @@ class CarExtended : public problem::ContinuousDynamics {
   // Same parameter accessors as CarKinematic
   double length() const { return length_; }
   double width() const { return width_; }
-  // ... etc ...
+  double height() const { return height_; }
+  double wheelbase() const { return wheelbase_; }
+  double rear_overhang() const { return rear_overhang_; }
+  double front_overhang() const { return front_overhang_; }
 
  private:
   double length_, width_, height_, wheelbase_, rear_overhang_, front_overhang_;
