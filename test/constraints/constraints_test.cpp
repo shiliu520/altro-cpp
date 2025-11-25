@@ -533,4 +533,127 @@ TEST(HeadingTrackingConstraintTest, ThirtyDegreeReferenceLine) {
   EXPECT_TRUE(jac.isApprox(expected_jac, 1e-9));
 }
 
+// 将大地系道路边界转换到自车局部系，并封装为带缓存的投影器
+std::shared_ptr<altro::examples::ReferenceLineProjector> TransformBoundaryToEgoFrame(
+    double y_world,                          // 大地系 y = const（如 -1.5 或 +1.5）
+    const Eigen::Vector2d& ego_pos_world,    // 自车在大地系位置 (0, -0.7)
+    double ego_yaw_world_rad) {              // 自车在大地系 yaw (-10° = -π/18)
+
+    std::vector<Eigen::Vector4d> trajectory_local;  // ReferenceLine 需要 Vector4d
+
+    for (double x_world = -10.0; x_world <= 10.0; x_world += 0.5) {
+        // 大地系点 (x, y_world)
+        Eigen::Vector2d p_world(x_world, y_world);
+
+        // 平移：相对于自车位置
+        Eigen::Vector2d p_rel = p_world - ego_pos_world;
+
+        // 旋转到自车坐标系：R(-ego_yaw) * p_rel
+        // 等价于用 +ego_yaw 的旋转矩阵转世界点到车身系
+        double cos_t = std::cos(ego_yaw_world_rad);
+        double sin_t = std::sin(ego_yaw_world_rad);
+
+        // 注意：从世界系到车身系的旋转是 R(-θ) = [cosθ, sinθ; -sinθ, cosθ]
+        // 所以：
+        Eigen::Vector2d p_local(
+            cos_t * p_rel.x() + sin_t * p_rel.y(),   // x_ego =  cosθ * dx + sinθ * dy
+           -sin_t * p_rel.x() + cos_t * p_rel.y()    // y_ego = -sinθ * dx + cosθ * dy
+        );
+
+        // ReferenceLine 要求每个点是 Vector4d: (x, y, theta, vel)
+        // 我们这里只关心几何，所以 theta 和 vel 可设为 0（或合理值）
+        // 如果后续 Project 需要用到 theta（用于法向），建议估算切线方向
+        // 更准确：world 中边界沿 x 轴 → 切向为 (1,0)，转到 ego 系：
+        Eigen::Vector2d tangent_world(1.0, 0.0);
+        Eigen::Vector2d tangent_ego(
+            cos_t * tangent_world.x() + sin_t * tangent_world.y(),
+           -sin_t * tangent_world.x() + cos_t * tangent_world.y()
+        );
+        double theta_ego = std::atan2(tangent_ego.y(), tangent_ego.x());
+
+        // 速度可设为 0 或任意值（如果约束不依赖 vel）
+        double vel = 0.0;
+
+        trajectory_local.emplace_back(p_local.x(), p_local.y(), theta_ego, vel);
+    }
+
+    // 创建 ReferenceLine
+    auto ref_line = std::make_shared<altro::examples::ReferenceLine>(
+        std::move(trajectory_local)
+    );
+
+    // 创建并返回 ReferenceLineProjector
+    return std::make_shared<altro::examples::ReferenceLineProjector>(ref_line);
+}
+
+
+TEST(PathBoundConstraintTest, RoadEastWithCarAt0Minus0_7YawMinus10Deg) {
+    using namespace altro::examples;
+
+    // === 车辆参数 ===
+    CarExtended vehicle_model;
+
+    double Lf = vehicle_model.wheelbase() + (vehicle_model.length() - vehicle_model.wheelbase() - vehicle_model.rear_overhang());
+    // double Lr = vehicle_model.rear_overhang();
+    double half_width = vehicle_model.width() * 0.5;
+
+    // === 大地系场景 ===
+    Eigen::Vector2d ego_pos_world(0.0, -0.7);   // (x, y) in world
+    double ego_yaw_world_deg = -10.0;
+    double ego_yaw_world_rad = ego_yaw_world_deg * M_PI / 180.0;
+
+    // 道路边界（大地系）：y = ±1.5
+    auto right_boundary_local = TransformBoundaryToEgoFrame(
+        -1.5, ego_pos_world, ego_yaw_world_rad);
+    auto left_boundary_local = TransformBoundaryToEgoFrame(
+        +1.5, ego_pos_world, ego_yaw_world_rad);
+
+    // === 约束（在局部系中）===
+    auto constraint = std::make_shared<PathBoundConstraint>(
+        left_boundary_local, right_boundary_local, vehicle_model, 0.0, 0.0);
+
+    // === 自车在局部系中的状态 ===
+    // 原点，无 yaw（因为我们已经把环境转过来了！）
+    Eigen::VectorXd x(6);
+    x << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+    Eigen::VectorXd u(2);
+
+    // === 验证中心到边界的距离 ===
+    auto proj_center_right = right_boundary_local->ProjectFromState(Eigen::Vector2d(0, 0));
+    auto proj_center_left  = left_boundary_local->ProjectFromState(Eigen::Vector2d(0, 0));
+
+    std::cout << "Center to right boundary d: " << proj_center_right.d << " (expect ~0.8)\n";
+    std::cout << "Center to left boundary d:  " << proj_center_left.d << " (expect ~-2.2)\n";
+
+    EXPECT_NEAR(proj_center_right.d, 0.8, 1e-9);
+    EXPECT_NEAR(proj_center_left.d, -2.2, 1e-9);  // 负号表示在左边界右侧（内部）
+
+    // === Evaluate 角点约束 ===
+    Eigen::VectorXd c(4);
+    constraint->Evaluate(x, u, c);
+
+    // 手动投影角点（θ=0，所以角点就是车身坐标）
+    Eigen::Vector2d fr(Lf, -half_width);
+    Eigen::Vector2d fl(Lf, +half_width);
+    auto proj_fr = right_boundary_local->ProjectFromState(fr);
+    auto proj_fl = left_boundary_local->ProjectFromState(fl);
+
+    EXPECT_NEAR(c(0), -(proj_fr.d + 0.0), 1e-9);  // c0 = -(d_fr)
+    EXPECT_NEAR(c(2),   proj_fl.d - 0.0, 1e-9);   // c2 = d_fl
+
+    // === Jacobian 验证 ===
+    Eigen::MatrixXd jac_analytic(4, 8);
+    constraint->Jacobian(x, u, jac_analytic);
+
+    auto eval = [&](const Eigen::VectorXd& x_in, const Eigen::VectorXd& u_in,
+                    Eigen::Ref<Eigen::VectorXd> c_out) {
+        constraint->Evaluate(x_in, u_in, c_out);
+    };
+    Eigen::MatrixXd jac_numeric = ComputeNumericalJacobian(eval, x, u, 4, 1e-7);
+
+    EXPECT_TRUE(jac_analytic.isApprox(jac_numeric, 1e-5))
+        << "\nAnalytic:\n" << jac_analytic
+        << "\nNumeric:\n" << jac_numeric;
+}
+
 }  // namespace altro

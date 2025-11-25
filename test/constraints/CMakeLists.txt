@@ -8,6 +8,7 @@ target_link_libraries(constraints_test
   gtest_main
   problem
   cost_function_examples
+  dynamics_examples
   utils
 )
 gtest_discover_tests(constraints_test)

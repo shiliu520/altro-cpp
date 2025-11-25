@@ -477,13 +477,13 @@ class HeadingTrackingConstraint : public constraints::Constraint<constraints::Ne
 class PathBoundConstraint : public constraints::Constraint<constraints::NegativeOrthant> {
 public:
     PathBoundConstraint(
-        std::shared_ptr<const ReferenceLine> left_boundary,
-        std::shared_ptr<const ReferenceLine> right_boundary,
+        std::shared_ptr<ReferenceLineProjector> left_boundary_proj,
+        std::shared_ptr<ReferenceLineProjector> right_boundary_proj,
         const CarExtended& vehicle_model,
         const double left_tolerance = 0.0,
         const double right_tolerance = 0.0)
-        : left_boundary_(std::move(left_boundary)),
-          right_boundary_(std::move(right_boundary)),
+        : left_boundary_(std::move(left_boundary_proj)),
+          right_boundary_(std::move(right_boundary_proj)),
           vehicle_model_(vehicle_model),
           left_tol_(left_tolerance),
           right_tol_(right_tolerance) {
@@ -522,10 +522,10 @@ public:
       Eigen::Vector2d fl_local = center + R * Eigen::Vector2d(Lf_, +half_width_);
       Eigen::Vector2d rl_local = center + R * Eigen::Vector2d(-Lr_, +half_width_);
 
-      auto proj_fr = right_boundary_->Project(fr_local);
-      auto proj_rr = right_boundary_->Project(rr_local);
-      auto proj_fl = left_boundary_->Project(fl_local);
-      auto proj_rl = left_boundary_->Project(rl_local);
+      auto proj_fr = right_boundary_->ProjectFromState(fr_local);
+      auto proj_rr = right_boundary_->ProjectFromState(rr_local);
+      auto proj_fl = left_boundary_->ProjectFromState(fl_local);
+      auto proj_rl = left_boundary_->ProjectFromState(rl_local);
 
       c(0) = -(proj_fr.d + right_tol_);
       c(1) = -(proj_rr.d + right_tol_);
@@ -557,10 +557,10 @@ public:
         Eigen::Vector2d rl_local = center + Eigen::Rotation2Dd(theta_l) * rl_b;
 
         // Project to get .theta (needed for normal direction in gradient)
-        auto proj_fr = right_boundary_->Project(fr_local);
-        auto proj_rr = right_boundary_->Project(rr_local);
-        auto proj_fl = left_boundary_->Project(fl_local);
-        auto proj_rl = left_boundary_->Project(rl_local);
+        auto proj_fr = right_boundary_->ProjectFromState(fr_local);
+        auto proj_rr = right_boundary_->ProjectFromState(rr_local);
+        auto proj_fl = left_boundary_->ProjectFromState(fl_local);
+        auto proj_rl = left_boundary_->ProjectFromState(rl_local);
 
         // Get left normals from theta (for gradient direction)
         auto get_left_normal = [](double theta) -> Eigen::Vector2d {
@@ -602,8 +602,8 @@ public:
     }
 
 private:
-    std::shared_ptr<const ReferenceLine> left_boundary_;
-    std::shared_ptr<const ReferenceLine> right_boundary_;
+    std::shared_ptr<ReferenceLineProjector> left_boundary_;
+    std::shared_ptr<ReferenceLineProjector> right_boundary_;
     altro::examples::CarExtended vehicle_model_;
     double left_tol_;
     double right_tol_;
