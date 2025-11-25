@@ -105,9 +105,17 @@ class CarExtendedProblem {
 
   altro::problem::Problem MakeProblem(bool add_constraints = true);
 
-  std::shared_ptr<const altro::examples::ReferenceLine> GetReferenceLine() const {
+  std::shared_ptr<const altro::examples::ReferenceLine> GetReferenceLineCenter() const {
     return std::const_pointer_cast<const altro::examples::ReferenceLine>(ref_line_);
-}
+  }
+
+  std::shared_ptr<const altro::examples::ReferenceLine> GetReferenceLineLeft() const {
+    return std::const_pointer_cast<const altro::examples::ReferenceLine>(left_projector_->GetReferenceLine());
+  }
+
+  std::shared_ptr<const altro::examples::ReferenceLine> GetReferenceLineRight() const {
+    return std::const_pointer_cast<const altro::examples::ReferenceLine>(right_projector_->GetReferenceLine());
+  }
 
   template <int n_size = NStates, int m_size = NControls>
   TrajType InitialTrajectory();
@@ -122,6 +130,8 @@ class CarExtendedProblem {
   Scenario scenario_ = kQuarterTurn;
   std::shared_ptr<altro::examples::ReferenceLine> ref_line_;
   std::shared_ptr<altro::examples::ReferenceLineProjector> projector_;
+  std::shared_ptr<altro::examples::ReferenceLineProjector> left_projector_;
+  std::shared_ptr<altro::examples::ReferenceLineProjector> right_projector_;
 };
 
 // Implementations

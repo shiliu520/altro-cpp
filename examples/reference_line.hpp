@@ -48,6 +48,11 @@ public:
         return cached_result_;
     }
 
+    std::shared_ptr<const ReferenceLine> GetReferenceLine() const {
+        return ref_line_;
+    }
+
+
     void Reset() {
         cache_valid_ = false;
         prev_index_hint_ = 0;

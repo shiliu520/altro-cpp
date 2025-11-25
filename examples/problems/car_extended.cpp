@@ -3,6 +3,133 @@
 #include <memory>
 #include "examples/problems/car_extended.hpp"
 
+// 辅助函数：带过渡的半宽计算
+double ComputeHalfWidthWithTaper(
+    double x,
+    double x_start_narrow,
+    double x_end_narrow,
+    double full_width = 1.5,
+    double intrusion = 0.8,
+    double transition_len = 1.0) {
+
+    double min_width = full_width - intrusion; // e.g., 0.7
+    double x_enter = x_start_narrow - transition_len;
+    double x_exit  = x_end_narrow   + transition_len;
+
+    if (x <= x_enter) return full_width;
+    if (x >= x_exit)  return full_width;
+
+    if (x < x_start_narrow) {
+        // 进入过渡区: [x_enter, x_start_narrow] → full → min
+        return full_width - intrusion * (x - x_enter) / transition_len;
+    } else if (x <= x_end_narrow) {
+        // 完全变窄区
+        return min_width;
+    } else {
+        // 退出过渡区: [x_end_narrow, x_exit] → min → full
+        return min_width + intrusion * (x - x_end_narrow) / transition_len;
+    }
+}
+
+// 生成左右边界 ReferenceLine
+void GenerateRoadBoundaries(
+    const std::vector<Eigen::Vector4d>& centerline,
+    std::shared_ptr<altro::examples::ReferenceLine>& left_boundary,
+    std::shared_ptr<altro::examples::ReferenceLine>& right_boundary) {
+
+    // Step 1: 初始粗略生成边界点（和之前一样）
+    std::vector<Eigen::Vector2d> left_pts_coarse, right_pts_coarse;
+    std::vector<double> vels_coarse;
+    std::vector<double> xs; // 保存 x 坐标用于判断区域
+
+    for (const auto& ref : centerline) {
+        double x = ref(0), y = ref(1), theta = ref(2), v = ref(3);
+        Eigen::Vector2d n_left(-std::sin(theta), std::cos(theta));
+        double left_hw  = ComputeHalfWidthWithTaper(x, 5.0, 10.0);
+        double right_hw = ComputeHalfWidthWithTaper(x, 20.0, 25.0);
+        Eigen::Vector2d center(x, y);
+        left_pts_coarse.push_back(center + left_hw * n_left);
+        right_pts_coarse.push_back(center - right_hw * n_left);
+        vels_coarse.push_back(v);
+        xs.push_back(x);
+    }
+
+    // Step 2: 自适应重采样边界轨迹
+    auto resampleBoundary = [&](const std::vector<Eigen::Vector2d>& pts,
+                                const std::vector<double>& xs_input,
+                                const std::vector<double>& vels_input,
+                                double base_density = 0.1) -> std::vector<Eigen::Vector4d> {
+        std::vector<Eigen::Vector4d> refined;
+
+        for (size_t i = 0; i < pts.size() - 1; ++i) {
+            Eigen::Vector2d p0 = pts[i];
+            Eigen::Vector2d p1 = pts[i + 1];
+            double x0 = xs_input[i];
+            double x1 = xs_input[i + 1];
+
+            // 判断这段是否在“变窄过渡区”
+            bool in_transition = false;
+            // 检查左/右是否在过渡区（简化：只要半宽变化快）
+            double hw0_left = ComputeHalfWidthWithTaper(x0, 5.0, 10.0);
+            double hw1_left = ComputeHalfWidthWithTaper(x1, 5.0, 10.0);
+            double hw0_right = ComputeHalfWidthWithTaper(x0, 20.0, 25.0);
+            double hw1_right = ComputeHalfWidthWithTaper(x1, 20.0, 25.0);
+
+            if (std::abs(hw1_left - hw0_left) > 1e-3 ||
+                std::abs(hw1_right - hw0_right) > 1e-3) {
+                in_transition = true;
+            }
+
+            double seg_len = (p1 - p0).norm();
+            int num_seg = in_transition ?
+                std::max(2, static_cast<int>(seg_len / (base_density * 0.2))) : // 加密5倍
+                std::max(1, static_cast<int>(seg_len / base_density));
+
+            for (int j = 0; j <= num_seg; ++j) {
+                double alpha = static_cast<double>(j) / num_seg;
+                Eigen::Vector2d p_interp = p0 + alpha * (p1 - p0);
+                double v_interp = vels_input[i] + alpha * (vels_input[i+1] - vels_input[i]);
+
+                // 先存位置，后面统一算 heading
+                refined.emplace_back(p_interp.x(), p_interp.y(), 0.0, v_interp);
+            }
+        }
+        return refined;
+    };
+
+    auto left_traj_refined = resampleBoundary(left_pts_coarse, xs, vels_coarse);
+    auto right_traj_refined = resampleBoundary(right_pts_coarse, xs, vels_coarse);
+
+    // Step 3: 对加密后的轨迹计算 heading（数值微分）
+    auto computeHeadingsInPlace = [](std::vector<Eigen::Vector4d>& traj) {
+        size_t N = traj.size();
+        if (N <= 1) return;
+
+        // 首点
+        double dx0 = traj[1](0) - traj[0](0);
+        double dy0 = traj[1](1) - traj[0](1);
+        traj[0](2) = std::atan2(dy0, dx0);
+
+        // 中间点
+        for (size_t k = 1; k < N - 1; ++k) {
+            double dx = traj[k+1](0) - traj[k-1](0);
+            double dy = traj[k+1](1) - traj[k-1](1);
+            traj[k](2) = std::atan2(dy, dx);
+        }
+
+        // 末点
+        double dxN = traj[N-1](0) - traj[N-2](0);
+        double dyN = traj[N-1](1) - traj[N-2](1);
+        traj[N-1](2) = std::atan2(dyN, dxN);
+    };
+
+    computeHeadingsInPlace(left_traj_refined);
+    computeHeadingsInPlace(right_traj_refined);
+
+    left_boundary  = std::make_shared<altro::examples::ReferenceLine>(std::move(left_traj_refined));
+    right_boundary = std::make_shared<altro::examples::ReferenceLine>(std::move(right_traj_refined));
+}
+
 namespace altro {
 namespace problems {
 
@@ -85,6 +212,16 @@ void CarExtendedProblem::SetScenario(Scenario scenario) {
 
       ref_line_ = std::make_shared<altro::examples::ReferenceLine>(std::move(traj));
       projector_ = std::make_shared<altro::examples::ReferenceLineProjector>(ref_line_);
+
+      std::shared_ptr<altro::examples::ReferenceLine> left_ref, right_ref;
+      GenerateRoadBoundaries(ref_line_->GetTrajectory(), left_ref, right_ref);
+
+      // 创建投影器（用于 PathBoundConstraint）
+      left_projector_  = std::make_shared<altro::examples::ReferenceLineProjector>(left_ref);
+      right_projector_ = std::make_shared<altro::examples::ReferenceLineProjector>(right_ref);
+
+      // std::cout << "create left/right boundary projectors for quarter turn scenario.\n";
+
       break;
     }
     case kUturn:
@@ -244,6 +381,11 @@ altro::problem::Problem CarExtendedProblem::MakeProblem(bool add_constraints) {
           std::make_shared<altro::examples::CentripetalJerkConstraint>(centric_jerk_max), k);
       prob.SetConstraint(
           std::make_shared<altro::examples::HeadingTrackingConstraint>(projector_, heading_offset_max), k);
+      if (GetScenario() != kGtest) {
+        prob.SetConstraint(
+            std::make_shared<altro::examples::PathBoundConstraint>(left_projector_, right_projector_, model), k);
+      }
+
     }
     // prob.SetConstraint(std::make_shared<examples::GoalConstraint>(xf), N);
 

@@ -4,6 +4,8 @@
 #include <cmath>
 #include <libgen.h>
 #include <filesystem>
+#include <iostream>
+
 #include "examples/problems/car_extended.hpp"
 
 #pragma GCC diagnostic push
@@ -11,9 +13,28 @@
 #include "test/third_party/matplotlibcpp/matplotlibcpp.h"
 #pragma GCC diagnostic pop
 
-
 namespace plt = matplotlibcpp;
 namespace fs = std::filesystem;
+
+void SaveVector4dToCSV(const std::vector<Eigen::Vector4d>& traj, const std::string& filename) {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file: " << filename << std::endl;
+        return;
+    }
+
+    file << "x,y,theta,velocity\n";
+
+    for (const auto& vec : traj) {
+        file << vec(0) << ","
+             << vec(1) << ","
+             << vec(2) << ","
+             << vec(3) << "\n";
+    }
+
+    file.close();
+    std::cout << "Saved trajectory to " << filename << " (" << traj.size() << " points)" << std::endl;
+}
 
 void SaveTrajectoryPlots(const double tf, const std::vector<Eigen::Vector4d>& traj,
                          const std::string& scenario_name) {
@@ -105,6 +126,8 @@ std::vector<double> ComputeArcLengthFromXY(
 void SaveOptimizedVsReferencePlots(
     const double tf,
     const std::vector<Eigen::Vector4d>& ref_traj,
+    const std::vector<Eigen::Vector4d>& ref_traj_left,
+    const std::vector<Eigen::Vector4d>& ref_traj_right,
     const std::vector<Eigen::VectorXd>& x_opt,
     const std::vector<Eigen::VectorXd>& u_opt,
     const std::string& scenario_name) {
@@ -132,10 +155,24 @@ void SaveOptimizedVsReferencePlots(
     // --- 1. XY Plot ---
     {
         std::vector<double> x_ref(ref_traj.size()), y_ref(ref_traj.size());
+        std::vector<double> x_ref_left(ref_traj_left.size()), y_ref_left(ref_traj_left.size());
+        std::vector<double> x_ref_right(ref_traj_right.size()), y_ref_right(ref_traj_right.size());
         for (size_t i = 0; i < ref_traj.size(); ++i) {
             x_ref[i] = ref_traj[i](0);
             y_ref[i] = ref_traj[i](1);
         }
+        // std::cout << "Reference trajectory center size: " << ref_traj.size() << std::endl;
+        for (size_t i = 0; i < ref_traj_left.size(); ++i) {
+            x_ref_left[i] = ref_traj_left[i](0);
+            y_ref_left[i] = ref_traj_left[i](1);
+        }
+
+        // std::cout << "Reference trajectory left size: " << ref_traj_left.size() << std::endl;
+        for (size_t i = 0; i < ref_traj_right.size(); ++i) {
+            x_ref_right[i] = ref_traj_right[i](0);
+            y_ref_right[i] = ref_traj_right[i](1);
+        }
+        // std::cout << "Reference trajectory right size: " << ref_traj_right.size() << std::endl;
 
         std::vector<double> x_opt_vec(x_opt.size()), y_opt_vec(x_opt.size());
         for (size_t i = 0; i < x_opt.size(); ++i) {
@@ -146,6 +183,8 @@ void SaveOptimizedVsReferencePlots(
         plt::figure();
         plt::plot(x_ref, y_ref, {{"color", "blue"}, {"linestyle", "-"}, {"label", "pos_ref"}});
         plt::plot(x_opt_vec, y_opt_vec, {{"color", "red"}, {"linestyle", "--"}, {"label", "pos_opt"}});
+        plt::plot(x_ref_left, y_ref_left, {{"color", "black"}, {"linestyle", "-"}, {"label", "left_boundary"}});
+        plt::plot(x_ref_right, y_ref_right, {{"color", "black"}, {"linestyle", "-"}, {"label", "right_boundary"}});
         plt::xlabel("x [m]");
         plt::ylabel("y [m]");
         plt::legend();
@@ -592,7 +631,7 @@ TEST(CarExtendedProblemTest, QuarterTurn) {
 
   solver_al.GetOptions().verbose = altro::LogLevel::kSilent;  // kDebug
   // solver_al.GetOptions().max_iterations_outer = 30;
-  solver_al.GetOptions().max_iterations_inner = 150;
+  solver_al.GetOptions().max_iterations_inner = 300;
   solver_al.Solve();
 
   std::cout << "Solver status: " << altro::SolverStatusToString(solver_al.GetStatus()) << std::endl;
@@ -613,8 +652,12 @@ TEST(CarExtendedProblemTest, QuarterTurn) {
     }
   }
 
-//   SaveOptimizedVsReferencePlots(prob.tf, prob.GetReferenceLine()->GetTrajectory(), x_opt, u_opt,
+//   SaveOptimizedVsReferencePlots(prob.tf, prob.GetReferenceLineCenter()->GetTrajectory(),
+//                                 prob.GetReferenceLineLeft()->GetTrajectory(),
+//                                 prob.GetReferenceLineRight()->GetTrajectory(), x_opt, u_opt,
 //                                 "QuarterTurn");
+//   SaveVector4dToCSV(prob.GetReferenceLineLeft()->GetTrajectory(), "reference_line_left.csv");
+//   SaveVector4dToCSV(prob.GetReferenceLineRight()->GetTrajectory(), "reference_line_right.csv");
 }
 }
 
