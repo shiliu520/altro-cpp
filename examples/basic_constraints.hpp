@@ -569,10 +569,15 @@ public:
       Eigen::Vector2d fl_local = center + R * Eigen::Vector2d(Lf_, +half_width_);
       Eigen::Vector2d rl_local = center + R * Eigen::Vector2d(-Lr_, +half_width_);
 
-      auto proj_fr = right_boundary_->ProjectFromState(fr_local);
-      auto proj_rr = right_boundary_->ProjectFromState(rr_local);
-      auto proj_fl = left_boundary_->ProjectFromState(fl_local);
-      auto proj_rl = left_boundary_->ProjectFromState(rl_local);
+      Eigen::Vector3d state_fr(fr_local.x(), fr_local.y(), theta_l);
+      Eigen::Vector3d state_rr(rr_local.x(), rr_local.y(), theta_l);
+      Eigen::Vector3d state_fl(fl_local.x(), fl_local.y(), theta_l);
+      Eigen::Vector3d state_rl(rl_local.x(), rl_local.y(), theta_l);
+
+      auto proj_fr = right_boundary_->ProjectFromState(state_fr);
+      auto proj_rr = right_boundary_->ProjectFromState(state_rr);
+      auto proj_fl = left_boundary_->ProjectFromState(state_fl);
+      auto proj_rl = left_boundary_->ProjectFromState(state_rl);
 
       c(0) = -(proj_fr.d + right_tol_);
       c(1) = -(proj_rr.d + right_tol_);
@@ -604,10 +609,15 @@ public:
         Eigen::Vector2d rl_local = center + Eigen::Rotation2Dd(theta_l) * rl_b;
 
         // Project to get .theta (needed for normal direction in gradient)
-        auto proj_fr = right_boundary_->ProjectFromState(fr_local);
-        auto proj_rr = right_boundary_->ProjectFromState(rr_local);
-        auto proj_fl = left_boundary_->ProjectFromState(fl_local);
-        auto proj_rl = left_boundary_->ProjectFromState(rl_local);
+        Eigen::Vector3d state_fr(fr_local.x(), fr_local.y(), theta_l);
+        Eigen::Vector3d state_rr(rr_local.x(), rr_local.y(), theta_l);
+        Eigen::Vector3d state_fl(fl_local.x(), fl_local.y(), theta_l);
+        Eigen::Vector3d state_rl(rl_local.x(), rl_local.y(), theta_l);
+
+        auto proj_fr = right_boundary_->ProjectFromState(state_fr);
+        auto proj_rr = right_boundary_->ProjectFromState(state_rr);
+        auto proj_fl = left_boundary_->ProjectFromState(state_fl);
+        auto proj_rl = left_boundary_->ProjectFromState(state_rl);
 
         // Get left normals from theta (for gradient direction)
         auto get_left_normal = [](double theta) -> Eigen::Vector2d {

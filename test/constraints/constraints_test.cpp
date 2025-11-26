@@ -619,8 +619,8 @@ TEST(PathBoundConstraintTest, RoadEastWithCarAt0Minus0_7YawMinus10Deg) {
     Eigen::VectorXd u(2);
 
     // === 验证中心到边界的距离 ===
-    auto proj_center_right = right_boundary_local->ProjectFromState(Eigen::Vector2d(0, 0));
-    auto proj_center_left  = left_boundary_local->ProjectFromState(Eigen::Vector2d(0, 0));
+    auto proj_center_right = right_boundary_local->ProjectFromState(Eigen::Vector3d(0, 0, 0));
+    auto proj_center_left  = left_boundary_local->ProjectFromState(Eigen::Vector3d(0, 0, 0));
 
     std::cout << "Center to right boundary d: " << proj_center_right.d << " (expect ~0.8)\n";
     std::cout << "Center to left boundary d:  " << proj_center_left.d << " (expect ~-2.2)\n";
