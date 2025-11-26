@@ -343,14 +343,18 @@ ReferenceTrackingCost::ReferenceTrackingCost(
     std::shared_ptr<ReferenceLineProjector> projector,
     double weight_lateral,
     double weight_speed,
+    double weight_heading,
     double delta_lateral,
     double delta_speed,
+    double delta_heading,
     bool terminal)
     : projector_(std::move(projector)),
       w_lat_(weight_lateral),
       w_vel_(weight_speed),
+      w_head_(weight_heading),
       delta_lat_(delta_lateral),
       delta_vel_(delta_speed),
+      delta_head_(delta_heading),
       terminal_(terminal) {}
 
 double ReferenceTrackingCost::Evaluate(const VectorXdRef& x, const VectorXdRef& u) {
@@ -365,10 +369,14 @@ double ReferenceTrackingCost::Evaluate(const VectorXdRef& x, const VectorXdRef& 
     // Speed error
     double e_vel = x[4] - proj.vel;
 
+    // Heading error
+    double e_head = NormalizeAngle(x[2] - proj.theta);
+
     double cost_lat = w_lat_ * HuberLoss(e_lat, delta_lat_);
     double cost_vel = w_vel_ * HuberLoss(e_vel, delta_vel_);
+    double cost_head = w_head_ * HuberLoss(e_head, delta_head_);
 
-    return cost_lat + cost_vel;
+    return cost_lat + cost_vel + cost_head;
 }
 
 void ReferenceTrackingCost::Gradient(const VectorXdRef& x, const VectorXdRef& u,
@@ -393,6 +401,11 @@ void ReferenceTrackingCost::Gradient(const VectorXdRef& x, const VectorXdRef& u,
     double e_vel = x[4] - proj.vel;
     double dhuber_dvel = HuberLossDerivative(e_vel, delta_vel_);
     dx[4] += w_vel_ * dhuber_dvel;
+
+    // --- Heading ---
+    double e_head = NormalizeAngle(x[2] - proj.theta);
+    double dhuber_dhead = HuberLossDerivative(e_head, delta_head_);
+    dx[2] += w_head_ * dhuber_dhead;  // ∂e_head/∂x[2] = 1
 }
 
 void ReferenceTrackingCost::Hessian(const VectorXdRef& x, const VectorXdRef& u,
@@ -427,6 +440,10 @@ void ReferenceTrackingCost::Hessian(const VectorXdRef& x, const VectorXdRef& u,
     double e_vel = x[4] - proj.vel;
     double d2huber_dvel2 = (std::abs(e_vel) <= delta_vel_) ? 1.0 : 0.0;
     dxdx(4, 4) = w_vel_ * d2huber_dvel2;
+
+    double e_head = NormalizeAngle(x[2] - proj.theta);
+    double d2huber_dhead2 = (std::abs(e_head) <= delta_head_) ? 1.0 : 0.0;
+    dxdx(2, 2) = w_head_ * d2huber_dhead2;
 }
 
 SumCost::SumCost(const std::vector<std::shared_ptr<problem::CostFunction>>& costs)

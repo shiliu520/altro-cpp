@@ -147,8 +147,10 @@ public:
         std::shared_ptr<ReferenceLineProjector> projector,
         double weight_lateral = 1.0,
         double weight_speed = 1.0,
+        double weight_heading = 1.0,
         double delta_lateral = 1.0,
         double delta_speed = 1.0,
+        double delta_heading = 0.2,
         bool terminal = false
     );
 
@@ -166,8 +168,8 @@ private:
     const ReferenceLine::ProjectionResult& GetProjection(const Eigen::VectorXd& x) const;
 
     std::shared_ptr<ReferenceLineProjector> projector_;
-    double w_lat_, w_vel_;
-    double delta_lat_, delta_vel_;
+    double w_lat_, w_vel_, w_head_;
+    double delta_lat_, delta_vel_, delta_head_;
     bool terminal_;
 };
 

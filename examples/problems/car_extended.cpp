@@ -327,8 +327,10 @@ altro::problem::Problem CarExtendedProblem::MakeProblem(bool add_constraints) {
           projector_,
           w_lateral * h,
           w_target_speed * h,
+          w_heading * h,
           delta_lateral,
           delta_speed,
+          delta_heading,
           false  // terminal flag
       );
       costs.push_back(tracking_cost);

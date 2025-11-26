@@ -52,8 +52,9 @@ class CarExtendedProblem {
   double w_centripetal_jerk_orin = 1.0;
   double w_target_speed_orin  = 1.0;   // speed tracking
   double w_lateral_orin       = 3.0;   // lateral offset
+  double w_heading_orin       = 1.0;   // heading offset
   double w_centric_acc_orin   = 1.0;   // centripetal acceleration
-  double w_terminal_state_orin = 0.01;  // terminal accuracy
+  double w_terminal_state_orin = 0.01; // terminal accuracy
   const double C = 5.0;                // cost value according to max cost term
 
   // State constraints parameters
@@ -76,6 +77,7 @@ class CarExtendedProblem {
   // Huber delta parameters
   double delta_speed = 1.0;      // for speed tracking
   double delta_lateral = 0.5;    // for lateral distance
+  double delta_heading = 0.2;    // for heading tracking
 
   double terminal_pos_tol   = 0.1;       // m
   double terminal_yaw_tol   = M_PI / 36.0; // 5 degrees ≈ 0.087 rad
@@ -86,6 +88,7 @@ class CarExtendedProblem {
   double w_centripetal_jerk = w_centripetal_jerk_orin * C / (centric_jerk_max * centric_jerk_max);
   double w_target_speed = w_target_speed_orin * C / (delta_speed * delta_speed);
   double w_lateral = w_lateral_orin * C / (delta_lateral * delta_lateral);
+  double w_heading = w_heading_orin * C / (delta_heading * delta_heading);
   double w_centric_acc = w_centric_acc_orin * C / (centric_acc_max * centric_acc_max);
   double w_terminal_pos = w_terminal_state_orin * C / (terminal_pos_tol * terminal_pos_tol);
   double w_terminal_yaw = w_terminal_state_orin * C / (terminal_yaw_tol * terminal_yaw_tol);
