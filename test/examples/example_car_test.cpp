@@ -490,7 +490,7 @@ static double ComputeExpectedTotalCost(const altro::problems::CarExtendedProblem
     // --- Terminal cost: k = N ---
     if (prob.w_terminal_state > 0) {
         Eigen::VectorXd dx = traj.State(N) - prob.xf;
-        Eigen::MatrixXd Qf = Eigen::MatrixXd::Identity(nx, nx) * (prob.w_terminal_state * 10.0);
+        Eigen::MatrixXd Qf = Eigen::MatrixXd::Identity(nx, nx) * (prob.w_terminal_state * 1.0);
         total_cost += 0.5 * dx.transpose() * Qf * dx;
     }
 
@@ -630,9 +630,10 @@ TEST(CarExtendedProblemTest, QuarterTurn) {
   //   double solver_cost = solver_al.GetiLQRSolver().Cost();
   //   double expected_cost = ComputeExpectedTotalCost(prob, traj);
 
-  solver_al.GetOptions().verbose = altro::LogLevel::kSilent;  // kDebug
-  // solver_al.GetOptions().max_iterations_outer = 30;
-  solver_al.GetOptions().max_iterations_inner = 300;
+  solver_al.GetOptions().verbose = altro::LogLevel::kDebug;  // kSilent
+  solver_al.GetOptions().max_iterations_outer = 30;          // default 30
+  solver_al.GetOptions().max_iterations_inner = 500;         // default 100
+  solver_al.GetOptions().max_iterations_total = 1000;        // default 300
   solver_al.Solve();
 
   std::cout << "Solver status: " << altro::SolverStatusToString(solver_al.GetStatus()) << std::endl;
