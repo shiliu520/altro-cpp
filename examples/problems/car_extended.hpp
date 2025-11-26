@@ -51,9 +51,9 @@ class CarExtendedProblem {
   double w_jerk_orin          = 1.0;   // longitudinal jerk
   double w_centripetal_jerk_orin = 1.0;
   double w_target_speed_orin  = 1.0;   // speed tracking
-  double w_lateral_orin       = 1.0;   // lateral offset
+  double w_lateral_orin       = 3.0;   // lateral offset
   double w_centric_acc_orin   = 1.0;   // centripetal acceleration
-  double w_terminal_state_orin = 1.0;  // terminal accuracy
+  double w_terminal_state_orin = 0.01;  // terminal accuracy
   const double C = 5.0;                // cost value according to max cost term
 
   // State constraints parameters

@@ -348,7 +348,7 @@ altro::problem::Problem CarExtendedProblem::MakeProblem(bool add_constraints) {
 
   // === Terminal cost ===
   if (w_terminal_state > 0) {
-    Eigen::MatrixXd Qf = Eigen::MatrixXd::Identity(NStates, NStates) * (w_terminal_state * 10.0);
+    Eigen::MatrixXd Qf = Eigen::MatrixXd::Identity(NStates, NStates) * (w_terminal_state * 1.0);
     Eigen::VectorXd qf = -Qf * xf;  // linear term
     double cf = 0.5 * xf.transpose() * Qf * xf;
     auto term_cost = std::make_shared<altro::examples::QuadraticCost>(
