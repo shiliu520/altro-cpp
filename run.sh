@@ -9,7 +9,7 @@ cmake ..                               # Run the CMake configuration step.
 # make -j4
 
 # for release build
-cmake -D ALTRO_BUILD_DOCS=ON .. -DCMAKE_BUILD_TYPE=Release ..     # Build all CMake targets
+cmake -D ALTRO_BUILD_DOCS=ON -DCMAKE_BUILD_TYPE=Release ..        # Build all CMake targets
 cmake --build . --target altro_docs
 make -j6
 

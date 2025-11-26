@@ -23,6 +23,7 @@ void Unicycle::Evaluate(const VectorXdRef& x, const VectorXdRef& u, const float 
 void Unicycle::Jacobian(const VectorXdRef& x, const VectorXdRef& u, const float t,
                         Eigen::Ref<MatrixXd> jac) {
   ALTRO_UNUSED(t);
+  jac.setZero();
   double theta = x(2);  // angle
   double v = u(0);      // linear velocity
   jac(0, 2) = -v * sin(theta);
@@ -35,6 +36,7 @@ void Unicycle::Jacobian(const VectorXdRef& x, const VectorXdRef& u, const float 
 void Unicycle::Hessian(const VectorXdRef& x, const VectorXdRef& u, const float t,
                        const VectorXdRef& b, Eigen::Ref<MatrixXd> hess) {
   ALTRO_UNUSED(t);
+  hess.setZero();
   double theta = x(2);  // angle
   double v = u(0);      // linear velocity
   hess(2, 2) = -b(0) * v * cos(theta) - b(1) * v * sin(theta);
