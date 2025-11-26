@@ -654,6 +654,10 @@ TEST(CarExtendedProblemTest, QuarterTurn) {
     }
   }
 
+  if (solver_al.GetStatus() != altro::SolverStatus::kSolved) {
+    solver_al.PrintViolationsMax();
+  }
+
   SaveOptimizedVsReferencePlots(prob.tf, prob.GetReferenceLineCenter()->GetTrajectory(),
                                 prob.GetReferenceLineLeft()->GetTrajectory(),
                                 prob.GetReferenceLineRight()->GetTrajectory(), x_opt, u_opt,

@@ -73,6 +73,17 @@ class AugmentedLagrangianiLQR {
     }
   }
 
+  void PrintViolationsMax(bool should_sort = false, int precision = 4) const {
+    std::vector<constraints::ConstraintInfo> coninfo = GetConstraintInfo(should_sort);
+    fmt::print("Got {} constraints\n", coninfo.size());
+    for (const constraints::ConstraintInfo& info : coninfo) {
+      if (info.violation.maxCoeff() > std::numeric_limits<double>::epsilon())
+      {
+        fmt::print("{}\n", info.ToString(precision));
+      }
+    }
+  }
+
   /**
    * @brief Get a list of the constraints.
    * 
