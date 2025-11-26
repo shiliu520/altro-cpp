@@ -474,6 +474,53 @@ class HeadingTrackingConstraint : public constraints::Constraint<constraints::Ne
   double theta_max_;
 };
 
+class SpeedTrackingConstraint : public constraints::Constraint<constraints::NegativeOrthant> {
+public:
+    explicit SpeedTrackingConstraint(
+        std::shared_ptr<ReferenceLineProjector> projector,
+        double speed_tolerance = 0.0)
+        : projector_(std::move(projector)), speed_tol_(speed_tolerance) {
+        if (!projector_) {
+            throw std::invalid_argument("Projector must not be null.");
+        }
+        if (speed_tol_ < 0.0) {
+            throw std::invalid_argument("Speed tolerance must be non-negative.");
+        }
+    }
+
+    std::string GetLabel() const override { return "Speed Tracking Constraint"; }
+
+    int StateDimension() const override { return 6; }
+    int ControlDimension() const override { return 0; }
+    int OutputDimension() const override { return 1; }
+
+    void Evaluate(const VectorXdRef& x, const VectorXdRef& u, Eigen::Ref<VectorXd> c) override {
+        ALTRO_UNUSED(u);
+
+        const auto& proj = projector_->ProjectFromState(x);
+        double v_vehicle = x(4);          // 车辆当前速度
+        double v_ref = proj.vel;          // 参考速度
+
+        // 允许超出参考速度最多 speed_tol_
+        // 约束: v_vehicle <= v_ref + speed_tol_
+        c(0) = v_vehicle - v_ref - speed_tol_;
+    }
+
+    void Jacobian(const VectorXdRef& x, const VectorXdRef& u, Eigen::Ref<MatrixXd> jac) override {
+        ALTRO_UNUSED(u);
+        ALTRO_UNUSED(x);
+        jac.setZero();  // shape: (1, 6)
+
+        // 注意：tolerance 是常数，对状态无导数
+        // 仍忽略 ∂v_ref/∂x, ∂v_ref/∂y 等（与 heading 约束风格一致）
+        jac(0, 4) = 1.0;  // ∂/∂v of (v - v_ref - tol) = 1
+    }
+
+private:
+    std::shared_ptr<ReferenceLineProjector> projector_;
+    double speed_tol_;  // ≥ 0
+};
+
 class PathBoundConstraint : public constraints::Constraint<constraints::NegativeOrthant> {
 public:
     PathBoundConstraint(

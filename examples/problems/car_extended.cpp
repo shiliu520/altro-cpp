@@ -381,6 +381,8 @@ altro::problem::Problem CarExtendedProblem::MakeProblem(bool add_constraints) {
           std::make_shared<altro::examples::CentripetalJerkConstraint>(centric_jerk_max), k);
       prob.SetConstraint(
           std::make_shared<altro::examples::HeadingTrackingConstraint>(projector_, heading_offset_max), k);
+      prob.SetConstraint(
+          std::make_shared<altro::examples::SpeedTrackingConstraint>(projector_), k);
       if (GetScenario() != kGtest) {
         prob.SetConstraint(
             std::make_shared<altro::examples::PathBoundConstraint>(left_projector_, right_projector_, model), k);
