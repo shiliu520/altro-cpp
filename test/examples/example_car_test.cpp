@@ -654,10 +654,10 @@ TEST(CarExtendedProblemTest, QuarterTurn) {
     }
   }
 
-//   SaveOptimizedVsReferencePlots(prob.tf, prob.GetReferenceLineCenter()->GetTrajectory(),
-//                                 prob.GetReferenceLineLeft()->GetTrajectory(),
-//                                 prob.GetReferenceLineRight()->GetTrajectory(), x_opt, u_opt,
-//                                 "QuarterTurn");
+  SaveOptimizedVsReferencePlots(prob.tf, prob.GetReferenceLineCenter()->GetTrajectory(),
+                                prob.GetReferenceLineLeft()->GetTrajectory(),
+                                prob.GetReferenceLineRight()->GetTrajectory(), x_opt, u_opt,
+                                "QuarterTurn");
 //   SaveVector4dToCSV(prob.GetReferenceLineLeft()->GetTrajectory(), "reference_line_left.csv");
 //   SaveVector4dToCSV(prob.GetReferenceLineRight()->GetTrajectory(), "reference_line_right.csv");
 }
