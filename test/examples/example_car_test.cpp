@@ -5,6 +5,7 @@
 #include <libgen.h>
 #include <filesystem>
 #include <iostream>
+#include <fstream>
 
 #include "examples/problems/car_extended.hpp"
 
