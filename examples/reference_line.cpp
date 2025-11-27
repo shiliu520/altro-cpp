@@ -56,6 +56,8 @@ ReferenceLine::ProjectionResult ReferenceLine::Project(
 
     best_proj_point.setZero();
 
+    seg_start = 0;
+    seg_end = n - 2;
     for (int i = seg_start; i <= seg_end; ++i) {
         const Eigen::Vector2d A = trajectory_[i].head<2>();
         const Eigen::Vector2d B = trajectory_[i + 1].head<2>();

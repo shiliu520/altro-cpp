@@ -646,9 +646,11 @@ TEST(CarExtendedProblemTest, QuarterTurn) {
   // Extract optimized trajectory as vectors
   auto traj_opt = solver_al.GetiLQRSolver().GetTrajectory();
   std::vector<Eigen::VectorXd> x_opt(prob.N + 1);
+  std::vector<Eigen::Vector4d> x_opt_log(prob.N + 1);
   std::vector<Eigen::VectorXd> u_opt(prob.N);  // N control steps
   for (int k = 0; k <= prob.N; ++k) {
     x_opt[k] = traj_opt->State(k);
+    x_opt_log[k] = x_opt[k].head(4);  // Log only first 4 states for plotting
     if (k < prob.N) {
       u_opt[k] = traj_opt->Control(k);
     }
@@ -662,6 +664,7 @@ TEST(CarExtendedProblemTest, QuarterTurn) {
                                 prob.GetReferenceLineLeft()->GetTrajectory(),
                                 prob.GetReferenceLineRight()->GetTrajectory(), x_opt, u_opt,
                                 "QuarterTurn");
+//   SaveVector4dToCSV(x_opt_log, "optimized_trajectory_quarter_turn.csv");
 //   SaveVector4dToCSV(prob.GetReferenceLineLeft()->GetTrajectory(), "reference_line_left.csv");
 //   SaveVector4dToCSV(prob.GetReferenceLineRight()->GetTrajectory(), "reference_line_right.csv");
 }
