@@ -579,10 +579,22 @@ public:
       auto proj_fl = left_boundary_->ProjectFromState(state_fl);
       auto proj_rl = left_boundary_->ProjectFromState(state_rl);
 
-      c(0) = -(proj_fr.d + right_tol_);
-      c(1) = -(proj_rr.d + right_tol_);
-      c(2) = proj_fl.d - left_tol_;
-      c(3) = proj_rl.d - left_tol_;
+#define DEBUG_PATH_BOUND_CONSTRAINT 0
+#if (DEBUG_PATH_BOUND_CONSTRAINT == 1)
+      fmt::print("PathBoundConstraint Evaluate:\n");
+      fmt::print("  Vehicle pos: ({:.3f}, {:.3f}), theta: {:.3f}\n", x_l, y_l, theta_l);
+      fmt::print("  FR pos: ({:.3f}, {:.3f}), proj d: {:.3f}\n", fr_local.x(), fr_local.y(), proj_fr.d);
+      fmt::print("  RR pos: ({:.3f}, {:.3f}), proj d: {:.3f}\n", rr_local.x(), rr_local.y(), proj_rr.d);
+      fmt::print("  FL pos: ({:.3f}, {:.3f}), proj d: {:.3f}\n", fl_local.x(), fl_local.y(), proj_fl.d);
+      fmt::print("  RL pos: ({:.3f}, {:.3f}), proj d: {:.3f}\n", rl_local.x(), rl_local.y(), proj_rl.d);
+
+#endif  // DEBUG_PATH_BOUND_CONSTRAINT
+#undef DEBUG_PATH_BOUND_CONSTRAINT
+
+      c(0) = -(proj_fr.d - right_tol_);
+      c(1) = -(proj_rr.d - right_tol_);
+      c(2) = proj_fl.d + left_tol_;
+      c(3) = proj_rl.d + left_tol_;
     }
 
     void Jacobian(const VectorXdRef& x, const VectorXdRef& u, Eigen::Ref<MatrixXd> jac) override {

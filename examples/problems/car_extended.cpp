@@ -210,6 +210,13 @@ void CarExtendedProblem::SetScenario(Scenario scenario) {
         traj[k] = ref;
       }
 
+      const double L_EXTEND = 1.0;
+      Eigen::Vector4d ref_back;
+      // x_back = -L_EXTEND, y=0, theta=0, v=0
+      ref_back << -L_EXTEND, 0.0, 0.0, 10.0;
+      traj.insert(traj.begin(), ref_back);
+      traj.pop_back();
+
       ref_line_ = std::make_shared<altro::examples::ReferenceLine>(std::move(traj));
       projector_ = std::make_shared<altro::examples::ReferenceLineProjector>(ref_line_);
 
@@ -387,7 +394,7 @@ altro::problem::Problem CarExtendedProblem::MakeProblem(bool add_constraints) {
           std::make_shared<altro::examples::SpeedTrackingConstraint>(projector_), k);
       if (GetScenario() != kGtest) {
         prob.SetConstraint(
-            std::make_shared<altro::examples::PathBoundConstraint>(left_projector_, right_projector_, model), k);
+            std::make_shared<altro::examples::PathBoundConstraint>(left_projector_, right_projector_, model, 0.10, 0.10), k);
       }
 
     }
