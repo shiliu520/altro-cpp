@@ -658,6 +658,15 @@ TEST(CarExtendedProblemTest, QuarterTurn) {
 
   if (solver_al.GetStatus() != altro::SolverStatus::kSolved) {
     solver_al.PrintViolationsMax();
+
+    VectorXd c(4);
+    int idx = 26;
+    auto left_projector_ = std::make_shared<altro::examples::ReferenceLineProjector>(prob.GetReferenceLineLeft());
+    auto right_projector_ = std::make_shared<altro::examples::ReferenceLineProjector>(prob.GetReferenceLineRight());
+    auto path_constraint = std::make_shared<altro::examples::PathBoundConstraint>(left_projector_, right_projector_, prob.model, 0.10, 0.10);
+    path_constraint->Evaluate(x_opt[idx], u_opt[idx], c);
+    std::cout << "Path constraint at step " << idx << ": " << c.transpose() << std::endl;
+    FAIL() << "Solver did not converge successfully.";
   }
 
   SaveOptimizedVsReferencePlots(prob.tf, prob.GetReferenceLineCenter()->GetTrajectory(),
